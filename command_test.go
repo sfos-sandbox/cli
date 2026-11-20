@@ -8333,3 +8333,33 @@ func TestCommand_RunAgainChecksRequiredFlagsAndSources(t *testing.T) {
 	r.NoError(cmd.Run(buildTestContext(t), []string{"app"}))
 	r.Equal("from-env", cmd.String("name"))
 }
+
+func TestDefaultCommandUnmatchedDoesNotLeakIntoArgs(t *testing.T) {
+	// A DefaultCommand that names no subcommand must not be prepended to the
+	// root command's Action args.
+	var gotArgs []string
+	helloRan := false
+	cmd := &Command{
+		Name:           "greet",
+		DefaultCommand: "helo",
+		Commands: []*Command{
+			{
+				Name: "hello",
+				Action: func(ctx context.Context, cmd *Command) error {
+					helloRan = true
+					return nil
+				},
+			},
+		},
+		Action: func(ctx context.Context, cmd *Command) error {
+			gotArgs = cmd.Args().Slice()
+			return nil
+		},
+	}
+
+	err := cmd.Run(buildTestContext(t), []string{"greet", "alice", "bob"})
+	assert.NoError(t, err)
+	assert.False(t, helloRan, "hello subcommand should not run")
+	assert.Equal(t, []string{"alice", "bob"}, gotArgs)
+	assert.Equal(t, 2, cmd.NArg())
+}

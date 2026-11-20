@@ -114,14 +114,14 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 				return &stringSliceArgs{posArgs}, nil
 			}
 
-			posArgs = append(posArgs, firstArg)
+			posArgs = append(posArgs, rargs[0])
 			continue
 		}
 
 		numMinuses := 1
 		// this is same as firstArg == "-"
 		if len(firstArg) == 1 {
-			posArgs = append(posArgs, firstArg)
+			posArgs = append(posArgs, rargs[0])
 			break
 		}
 

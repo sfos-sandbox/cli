@@ -181,6 +181,20 @@ func TestMutuallyExclusiveFlags_RequiredOnParentCheckedBySubcommand(t *testing.T
 	}
 }
 
+func TestMutuallyExclusiveFlags_RequiredOnParentNotEnforcedForHelp(t *testing.T) {
+	root := &Command{
+		Name:      "root",
+		Writer:    io.Discard,
+		ErrWriter: io.Discard,
+		MutuallyExclusiveFlags: []MutuallyExclusiveFlags{{
+			Required: true,
+			Flags:    [][]Flag{{&StringFlag{Name: "alpha"}}, {&StringFlag{Name: "beta"}}},
+		}},
+		Commands: []*Command{{Name: "sub"}},
+	}
+	assert.NoError(t, root.Run(buildTestContext(t), []string{"root", "help", "sub"}))
+}
+
 func TestMutuallyExclusiveFlags_PropagateStringer(t *testing.T) {
 	customStringer := func(f Flag) string {
 		return "custom:" + f.Names()[0]

@@ -315,7 +315,9 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 	// This is only done for the command that actually runs, after it has
 	// parsed its inherited flags, so that a flag belonging to an ancestor's
 	// group may be written after the subcommand name.
-	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
+	// Like required flags, these are not enforced for the help and
+	// completion commands.
+	for pCmd := cmd; pCmd != nil && !cmd.builtInHelp && !cmd.isCompletionCommand; pCmd = pCmd.parent {
 		for _, grp := range pCmd.MutuallyExclusiveFlags {
 			if err := grp.check(cmd); err != nil {
 				if cmd.OnUsageError != nil {

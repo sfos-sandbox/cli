@@ -803,3 +803,35 @@ func TestUnboundedArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestPositionalArgsPreserveWhitespace(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		expected []string
+	}{
+		{name: "padded", args: []string{"prog", "  padded  "}, expected: []string{"  padded  "}},
+		{name: "leading", args: []string{"prog", " a", "b"}, expected: []string{" a", "b"}},
+		{name: "trailing tab", args: []string{"prog", "a\t"}, expected: []string{"a\t"}},
+		{name: "whitespace only", args: []string{"prog", "   "}, expected: []string{"   "}},
+		{name: "with flag", args: []string{"prog", "--foo", "x", " y "}, expected: []string{" y "}},
+		{name: "after terminator", args: []string{"prog", "--", " z "}, expected: []string{" z "}},
+		{name: "dash with spaces", args: []string{"prog", " - "}, expected: []string{" - "}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []string
+			cmd := &Command{
+				Flags: []Flag{&StringFlag{Name: "foo"}},
+				Action: func(_ context.Context, cmd *Command) error {
+					got = cmd.Args().Slice()
+					return nil
+				},
+			}
+			require.NoError(t, cmd.Run(buildTestContext(t), tc.args))
+			require.Equal(t, tc.expected, got)
+			require.Equal(t, tc.expected, cmd.Args().Slice())
+		})
+	}
+}

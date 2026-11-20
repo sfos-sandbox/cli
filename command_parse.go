@@ -89,7 +89,7 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 			// In shell completion mode, preserve "--" so that completion can detect
 			// when the user is completing "--" itself vs. completing after "--"
 			if cmd.Root().shellCompletion {
-				posArgs = append(posArgs, firstArg)
+				posArgs = append(posArgs, rargs[0])
 			}
 			posArgs = append(posArgs, rargs[1:]...)
 			return &stringSliceArgs{posArgs}, nil
@@ -114,14 +114,14 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 				return &stringSliceArgs{posArgs}, nil
 			}
 
-			posArgs = append(posArgs, firstArg)
+			posArgs = append(posArgs, rargs[0])
 			continue
 		}
 
 		numMinuses := 1
 		// this is same as firstArg == "-"
 		if len(firstArg) == 1 {
-			posArgs = append(posArgs, firstArg)
+			posArgs = append(posArgs, rargs[0])
 			break
 		}
 

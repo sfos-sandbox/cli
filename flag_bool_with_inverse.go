@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 var DefaultInverseBoolPrefix = "no-"
@@ -195,7 +196,7 @@ func (bif *BoolWithInverseFlag) String() string {
 	prefix := "--"
 
 	// single character flags are prefixed with `-` instead of `--`
-	if len(bif.Name) == 1 {
+	if utf8.RuneCountInString(bif.Name) == 1 {
 		prefix = "-"
 	}
 
@@ -210,7 +211,7 @@ func (bif *BoolWithInverseFlag) String() string {
 	var aliasParts []string
 	for _, alias := range bif.Aliases {
 		aPrefix := "--"
-		if len(alias) == 1 {
+		if utf8.RuneCountInString(alias) == 1 {
 			aPrefix = "-"
 		}
 		aliasParts = append(aliasParts, aPrefix+alias)

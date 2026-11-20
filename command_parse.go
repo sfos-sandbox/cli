@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -133,7 +134,7 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 		if firstArg[1] == '-' {
 			numMinuses++
 			shortOptionHandling = false
-		} else if !unicode.IsLetter(rune(firstArg[1])) {
+		} else if r, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(r) {
 			// this is not a flag
 			tracef("parseFlags not a unicode letter. Stop parsing")
 			posArgs = append(posArgs, rargs...)
@@ -223,7 +224,7 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 				return &stringSliceArgs{posArgs}, fmt.Errorf("%s%s", providedButNotDefinedErrMsg, flagName)
 			} else if fb, ok := sf.(boolFlag); ok && fb.IsBoolFlag() {
 				fv := flagVal
-				if index == (len(flagName)-1) && flagVal == "" {
+				if index+utf8.RuneLen(c) == len(flagName) && flagVal == "" {
 					fv = "true"
 				}
 				if fv == "" {
@@ -233,7 +234,7 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 					tracef("processing flag.2 (fName=%[1]q)", string(c))
 					return &stringSliceArgs{posArgs}, err
 				}
-			} else if index == len(flagName)-1 { // last flag can take an arg
+			} else if index+utf8.RuneLen(c) == len(flagName) { // last flag can take an arg
 				if flagVal == "" {
 					if len(rargs) == 1 {
 						return &stringSliceArgs{posArgs}, fmt.Errorf("%s%s", argumentNotProvidedErrMsg, string(c))

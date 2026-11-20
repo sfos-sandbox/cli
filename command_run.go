@@ -284,13 +284,18 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 
 			if hasDefault {
 				tracef("using default command=%[1]q (cmd=%[2]q)", cmd.DefaultCommand, cmd.Name)
-			}
 
-			if hasDefault {
-				argsWithDefault := cmd.argsWithDefaultCommand(cmd.parsedArgs)
-				tracef("using default command args=%[1]q (cmd=%[2]q)", argsWithDefault, cmd.Name)
-				subCmd = cmd.Command(argsWithDefault.First())
-				cmd.parsedArgs = argsWithDefault
+				// Only rewrite the args when the default command actually
+				// resolves to a subcommand; otherwise the DefaultCommand name
+				// would leak into this command's own Action args.
+				if dc := cmd.Command(cmd.DefaultCommand); dc != nil {
+					argsWithDefault := cmd.argsWithDefaultCommand(cmd.parsedArgs)
+					tracef("using default command args=%[1]q (cmd=%[2]q)", argsWithDefault, cmd.Name)
+					subCmd = dc
+					cmd.parsedArgs = argsWithDefault
+				} else {
+					tracef("default command %[1]q not found; leaving args unchanged (cmd=%[2]q)", cmd.DefaultCommand, cmd.Name)
+				}
 			}
 		}
 	} else if cmd.DefaultCommand != "" {

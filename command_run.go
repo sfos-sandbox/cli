@@ -221,7 +221,7 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 
 	if cmd.checkHelp() {
 		ctx = context.WithValue(ctx, helpShownKey{}, true)
-		return ctx, helpCommandAction(ctx, cmd)
+		return ctx, helpFlagAction(ctx, cmd)
 	} else {
 		tracef("no help is wanted (cmd=%[1]q)", cmd.Name)
 	}

@@ -2455,3 +2455,45 @@ func skipIfNoTemplates(t *testing.T) {
 		t.Skip("custom templates are not supported with urfave_cli_no_template build tag")
 	}
 }
+
+func TestHelpFlagIgnoresNonSubcommandArgs(t *testing.T) {
+	newCmd := func(out *bytes.Buffer) *Command {
+		return &Command{
+			Name:   "app",
+			Usage:  "root usage",
+			Writer: out,
+			Commands: []*Command{
+				{
+					Name:      "command",
+					Usage:     "command usage",
+					Arguments: []Argument{&StringArg{Name: "arg1"}},
+					Action:    func(context.Context, *Command) error { return nil },
+				},
+			},
+			Action: func(context.Context, *Command) error { return nil },
+		}
+	}
+
+	tests := []struct {
+		args     []string
+		contains string
+	}{
+		{args: []string{"app", "command", "--help"}, contains: "app command - command usage"},
+		{args: []string{"app", "command", "ciao", "--help"}, contains: "app command - command usage"},
+		{args: []string{"app", "command", "--help", "ciao"}, contains: "app command - command usage"},
+		{args: []string{"app", "command", "ciao", "-h"}, contains: "app command - command usage"},
+		{args: []string{"app", "--help", "ciao"}, contains: "app - root usage"},
+		{args: []string{"app", "ciao", "-h"}, contains: "app - root usage"},
+		{args: []string{"app", "--help", "command"}, contains: "app command - command usage"},
+	}
+
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			out := &bytes.Buffer{}
+			err := newCmd(out).Run(buildTestContext(t), tt.args)
+			require.NoError(t, err)
+			assert.Contains(t, out.String(), tt.contains)
+			assert.NotContains(t, out.String(), "No help topic")
+		})
+	}
+}

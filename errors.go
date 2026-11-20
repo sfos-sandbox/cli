@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -171,7 +172,8 @@ func HandleExitCoder(err error) {
 		return
 	}
 
-	if exitErr, ok := err.(ExitCoder); ok {
+	var exitErr ExitCoder
+	if errors.As(err, &exitErr) {
 		if msg := err.Error(); msg != "" {
 			if _, ok := exitErr.(ErrorFormatter); ok {
 				_, _ = fmt.Fprintf(ErrWriter, "%+v\n", err)
@@ -183,7 +185,8 @@ func HandleExitCoder(err error) {
 		return
 	}
 
-	if multiErr, ok := err.(MultiError); ok {
+	var multiErr MultiError
+	if errors.As(err, &multiErr) {
 		code := handleMultiError(multiErr)
 		OsExiter(code)
 		return

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -127,6 +129,54 @@ func TestFlagMutuallyExclusiveFlags(t *testing.T) {
 			default:
 				t.Errorf("got invalid error type %T", err)
 			}
+		})
+	}
+}
+
+func TestMutuallyExclusiveFlags_RequiredOnParentCheckedBySubcommand(t *testing.T) {
+	newRoot := func(ran *bool) *Command {
+		return &Command{
+			Name: "root",
+			MutuallyExclusiveFlags: []MutuallyExclusiveFlags{{
+				Required: true,
+				Flags:    [][]Flag{{&StringFlag{Name: "alpha"}}, {&StringFlag{Name: "beta"}}},
+			}},
+			Commands: []*Command{{
+				Name: "sub",
+				Action: func(_ context.Context, cmd *Command) error {
+					*ran = true
+					return nil
+				},
+			}},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		args   []string
+		errStr string
+	}{
+		{name: "flag before subcommand", args: []string{"root", "--alpha", "hello", "sub"}},
+		{name: "flag after subcommand", args: []string{"root", "sub", "--alpha", "hello"}},
+		{name: "none set", args: []string{"root", "sub"}, errStr: "one of these flags needs to be provided: alpha"},
+		{name: "both set split", args: []string{"root", "--alpha", "a", "sub", "--beta", "b"}, errStr: "option alpha cannot be set along with option beta"},
+		{name: "both set after subcommand", args: []string{"root", "sub", "--alpha", "a", "--beta", "b"}, errStr: "option alpha cannot be set along with option beta"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var ran bool
+			root := newRoot(&ran)
+			root.Writer = io.Discard
+			root.ErrWriter = io.Discard
+			err := root.Run(buildTestContext(t), test.args)
+			if test.errStr == "" {
+				assert.NoError(t, err)
+				assert.True(t, ran)
+				return
+			}
+			assert.ErrorContains(t, err, test.errStr)
+			assert.False(t, ran)
 		})
 	}
 }

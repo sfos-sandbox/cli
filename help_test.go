@@ -328,6 +328,51 @@ func Test_helpCommand_InHelpOutput(t *testing.T) {
 	require.Contains(t, s, "--help, -h", "missing \"--help, --h\"")
 }
 
+func Test_helpCommand_AliasClashWithUserCommand(t *testing.T) {
+	historyRan := false
+	newCmd := func(w *bytes.Buffer) *Command {
+		return &Command{
+			Name:   "app",
+			Writer: w,
+			Commands: []*Command{
+				{
+					Name:    "history",
+					Aliases: []string{"h"},
+					Usage:   "show history",
+					Action: func(context.Context, *Command) error {
+						historyRan = true
+						return nil
+					},
+				},
+			},
+		}
+	}
+
+	output := &bytes.Buffer{}
+	cmd := newCmd(output)
+	require.NoError(t, cmd.Run(buildTestContext(t), []string{"app", "--help"}))
+
+	s := output.String()
+	require.Contains(t, s, "history, h")
+	require.NotContains(t, s, "help, h")
+	require.Contains(t, s, "help ")
+
+	helpCmd := cmd.Command("help")
+	require.NotNil(t, helpCmd)
+	require.Empty(t, helpCmd.Aliases)
+	require.Equal(t, "history", cmd.Command("h").Name)
+
+	output.Reset()
+	require.NoError(t, newCmd(output).Run(buildTestContext(t), []string{"app", "h"}))
+	require.True(t, historyRan)
+
+	// Without a clash the help command keeps its alias.
+	output.Reset()
+	plain := &Command{Name: "app", Writer: output, Commands: []*Command{{Name: "history"}}}
+	require.NoError(t, plain.Run(buildTestContext(t), []string{"app", "--help"}))
+	require.Contains(t, output.String(), "help, h")
+}
+
 func TestHelpCommand_FullName(t *testing.T) {
 	testCases := []struct {
 		name     string

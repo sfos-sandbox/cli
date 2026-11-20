@@ -248,6 +248,16 @@ func (cmd *Command) ensureHelp() {
 	if !cmd.hideHelp() {
 		if cmd.Command(helpCommand.Name) == nil {
 			if !cmd.hideHelpCommand() {
+				// Give up any alias (e.g. "h") that a user command already
+				// claims, so the help output doesn't advertise an alias
+				// that actually runs a different command.
+				aliases := make([]string, 0, len(helpCommand.Aliases))
+				for _, alias := range helpCommand.Aliases {
+					if cmd.Command(alias) == nil {
+						aliases = append(aliases, alias)
+					}
+				}
+				helpCommand.Aliases = aliases
 				tracef("appending helpCommand (cmd=%[1]q)", cmd.Name)
 				cmd.appendCommand(helpCommand)
 			}

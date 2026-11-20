@@ -141,6 +141,35 @@ func helpCommandAction(ctx context.Context, cmd *Command) error {
 	return ShowSubcommandHelp(cmd)
 }
 
+// helpFlagAction is run when the help flag (--help / -h) was given. Unlike the
+// help command, a positional argument that does not name a subcommand is not
+// treated as a help topic: it is ignored and the help of the command being run
+// is shown instead.
+//
+//	$ app --help foo   # foo is a subcommand; show help for "foo"
+//	$ app --help ciao  # ciao is not a subcommand; show root help
+//	$ app cmd ciao -h  # ciao is an argument of cmd; show help for "cmd"
+func helpFlagAction(ctx context.Context, cmd *Command) error {
+	if !cmd.builtInHelp {
+		if firstArg := cmd.Args().First(); firstArg != "" && cmd.Command(firstArg) == nil {
+			tracef("ignoring non-subcommand arg %[1]q for help flag (cmd=%[2]q)", firstArg, cmd.Name)
+
+			if cmd.parent == nil {
+				_ = ShowRootCommandHelp(cmd)
+				return nil
+			}
+
+			if len(cmd.VisibleCommands()) == 0 {
+				return ShowCommandHelp(ctx, cmd.parent, cmd.Name)
+			}
+
+			return ShowSubcommandHelp(cmd)
+		}
+	}
+
+	return helpCommandAction(ctx, cmd)
+}
+
 // ShowRootCommandHelpAndExit prints the list of subcommands and exits with exit code.
 func ShowRootCommandHelpAndExit(cmd *Command, exitCode int) {
 	_ = ShowRootCommandHelp(cmd)

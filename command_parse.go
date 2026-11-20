@@ -22,6 +22,30 @@ func flagFromError(err error) (string, error) {
 	return trimmed, nil
 }
 
+// isDefinedShortFlag reports whether arg (a single-dash argument without its
+// dash) names a defined flag, so that flags whose names do not start with a
+// letter, such as -4 or -6, are parsed instead of stopping flag parsing.
+// Arguments that do not match a defined flag, such as negative numbers, are
+// still treated as positional.
+func (cmd *Command) isDefinedShortFlag(arg string, shortOptionHandling bool) bool {
+	name, _, _ := strings.Cut(arg, "=")
+	if name == "" {
+		return false
+	}
+	if cmd.lookupAppliedFlag(name) != nil {
+		return true
+	}
+	if !shortOptionHandling {
+		return false
+	}
+	for _, c := range name {
+		if cmd.lookupAppliedFlag(string(c)) == nil {
+			return false
+		}
+	}
+	return true
+}
+
 func (cmd *Command) parseFlags(args Args) (Args, error) {
 	tracef("parsing flags from arguments %[1]q (cmd=%[2]q)", args, cmd.Name)
 
@@ -134,7 +158,7 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 		if firstArg[1] == '-' {
 			numMinuses++
 			shortOptionHandling = false
-		} else if firstRune, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(firstRune) {
+		} else if firstRune, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(firstRune) && !cmd.isDefinedShortFlag(firstArg[1:], shortOptionHandling) {
 			// this is not a flag
 			tracef("parseFlags not a unicode letter. Stop parsing")
 			posArgs = append(posArgs, rargs...)

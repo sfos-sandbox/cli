@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"flag"
 	"testing"
 	"time"
@@ -232,4 +233,23 @@ func TestFlag_SchemaType_PreservesPrecision(t *testing.T) {
 
 	f2 := &DurationFlag{Value: 5 * time.Second}
 	assert.Equal(t, "duration", f2.SchemaType())
+}
+
+func TestFlag_SchemaItemsType_Generic(t *testing.T) {
+	f := &GenericFlag{Name: "gen"}
+	assert.NotPanics(t, func() {
+		assert.Equal(t, "", f.SchemaItemsType())
+	})
+}
+
+func TestGenericFlag_EmptyEnvNoValue(t *testing.T) {
+	t.Setenv("APP_GEN_EMPTY", "")
+	cmd := &Command{
+		Flags: []Flag{
+			&GenericFlag{Name: "gen", Sources: EnvVars("APP_GEN_EMPTY")},
+		},
+	}
+	assert.NotPanics(t, func() {
+		assert.NoError(t, cmd.Run(context.Background(), []string{"app"}))
+	})
 }

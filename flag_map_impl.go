@@ -69,7 +69,11 @@ func (i *MapBase[T, C, VC]) Set(value string) error {
 
 	if s, ok := strings.CutPrefix(value, slPfx()); ok {
 		// Deserializing assumes overwrite
-		_ = json.Unmarshal([]byte(s), &i.dict)
+		// Unmarshal into the destination itself (not the pointer to it) so a
+		// serialized nil ("null") clears the destination rather than
+		// disconnecting the flag from it.
+		*i.dict = nil
+		_ = json.Unmarshal([]byte(s), i.dict)
 		i.hasBeenSet = true
 		return nil
 	}
@@ -87,6 +91,10 @@ func (i *MapBase[T, C, VC]) Set(value string) error {
 		mvc.SliceFlagSeparator,
 		mvc.DisableSliceFlagSeparator,
 	)
+	if *i.dict == nil {
+		*i.dict = map[string]T{}
+	}
+
 	for _, item := range flagSplitMultiValues(value, mvc.SliceFlagSeparator, mvc.DisableSliceFlagSeparator) {
 		key, value, ok := strings.Cut(item, keyValueSeparator)
 		if !ok {

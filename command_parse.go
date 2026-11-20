@@ -32,14 +32,14 @@ func (cmd *Command) isDefinedShortFlag(arg string, shortOptionHandling bool) boo
 	if name == "" {
 		return false
 	}
-	if cmd.lookupAppliedFlag(name) != nil {
+	if cmd.findAppliedFlag(name) != nil {
 		return true
 	}
 	if !shortOptionHandling {
 		return false
 	}
 	for _, c := range name {
-		if cmd.lookupAppliedFlag(string(c)) == nil {
+		if cmd.findAppliedFlag(string(c)) == nil {
 			return false
 		}
 	}

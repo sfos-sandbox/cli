@@ -120,10 +120,8 @@ func suggestFlag(flags []Flag, provided string, hideHelp bool) string {
 		}
 	}
 
-	if len(suggestion) == 1 {
-		suggestion = "-" + suggestion
-	} else if len(suggestion) > 1 {
-		suggestion = "--" + suggestion
+	if suggestion != "" {
+		suggestion = prefixFor(suggestion) + suggestion
 	}
 
 	return suggestion

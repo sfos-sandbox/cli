@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"sort"
 	"strings"
 )
 
@@ -248,7 +249,16 @@ func (cmd *Command) HasName(name string) bool {
 // Hidden=false
 func (cmd *Command) VisibleCategories() []CommandCategory {
 	ret := []CommandCategory{}
-	for _, category := range cmd.categories.Categories() {
+	categories := cmd.categories
+	if categories == nil {
+		cc := newCommandCategories()
+		for _, subCmd := range cmd.Commands {
+			cc.AddCommand(subCmd.Category, subCmd)
+		}
+		sort.Sort(cc.(*commandCategories))
+		categories = cc
+	}
+	for _, category := range categories.Categories() {
 		if visible := func() CommandCategory {
 			if len(category.VisibleCommands()) > 0 {
 				return category

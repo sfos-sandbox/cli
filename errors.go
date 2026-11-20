@@ -172,25 +172,75 @@ func HandleExitCoder(err error) {
 		return
 	}
 
-	var exitErr ExitCoder
-	if errors.As(err, &exitErr) {
-		if msg := err.Error(); msg != "" {
-			if _, ok := exitErr.(ErrorFormatter); ok {
-				_, _ = fmt.Fprintf(ErrWriter, "%+v\n", err)
+	// Walk the chain of wrapped errors (fmt.Errorf("...: %w", ...)) looking
+	// for the outermost ExitCoder or MultiError. Only single-error Unwrap
+	// is followed here so that a MultiError implementing Unwrap() []error is
+	// handled as a MultiError (last exit code wins) rather than by errors.As
+	// (first exit code wins).
+	for e, wrapped := err, false; e != nil; e, wrapped = errors.Unwrap(e), true {
+		if exitErr, ok := e.(ExitCoder); ok {
+			printExitError(err, exitErr)
+			OsExiter(exitErr.ExitCode())
+			return
+		}
+		if multiErr, ok := e.(MultiError); ok {
+			if !wrapped {
+				OsExiter(handleMultiError(multiErr))
 			} else {
 				_, _ = fmt.Fprintln(ErrWriter, err)
+				OsExiter(multiErrorExitCode(multiErr))
 			}
+			return
 		}
-		OsExiter(exitErr.ExitCode())
-		return
 	}
 
-	var multiErr MultiError
-	if errors.As(err, &multiErr) {
-		code := handleMultiError(multiErr)
-		OsExiter(code)
-		return
+	// Fall back to errors.As for other wrapping schemes, e.g. errors.Join.
+	var exitErr ExitCoder
+	if errors.As(err, &exitErr) {
+		printExitError(err, exitErr)
+		OsExiter(exitErr.ExitCode())
 	}
+}
+
+func printExitError(err error, exitErr ExitCoder) {
+	if msg := err.Error(); msg != "" {
+		if _, ok := exitErr.(ErrorFormatter); ok {
+			_, _ = fmt.Fprintf(ErrWriter, "%+v\n", err)
+		} else {
+			_, _ = fmt.Fprintln(ErrWriter, err)
+		}
+	}
+}
+
+// exitCodeOf returns the exit code carried by err, looking through wrapped
+// errors and MultiErrors (where the last exit code wins).
+func exitCodeOf(err error) (int, bool) {
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		if exitErr, ok := e.(ExitCoder); ok {
+			return exitErr.ExitCode(), true
+		}
+		if multiErr, ok := e.(MultiError); ok {
+			code, found := 1, false
+			for _, merr := range multiErr.Errors() {
+				if c, ok := exitCodeOf(merr); ok {
+					code, found = c, true
+				}
+			}
+			return code, found
+		}
+	}
+	var exitErr ExitCoder
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode(), true
+	}
+	return 0, false
+}
+
+func multiErrorExitCode(multiErr MultiError) int {
+	if code, ok := exitCodeOf(multiErr); ok {
+		return code
+	}
+	return 1
 }
 
 func handleMultiError(multiErr MultiError) int {
@@ -200,8 +250,8 @@ func handleMultiError(multiErr MultiError) int {
 			code = handleMultiError(multiErr2)
 		} else if merr != nil {
 			fmt.Fprintln(ErrWriter, merr)
-			if exitErr, ok := merr.(ExitCoder); ok {
-				code = exitErr.ExitCode()
+			if c, ok := exitCodeOf(merr); ok {
+				code = c
 			}
 		}
 	}

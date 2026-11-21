@@ -264,28 +264,6 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 		}()
 	}
 
-	// Walk the parent chain to check mutually exclusive flag groups
-	// defined on ancestor commands, since persistent flags are inherited.
-	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
-		for _, grp := range pCmd.MutuallyExclusiveFlags {
-			if err := grp.check(cmd); err != nil {
-				if cmd.OnUsageError != nil {
-					err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
-				} else {
-					fmt.Fprintf(cmd.Root().ErrWriter, "Incorrect Usage: %s\n\n", err.Error())
-					if cmd.parent == nil {
-						_ = ShowRootCommandHelp(cmd)
-					} else {
-						if err := ShowCommandHelp(ctx, cmd.parent, cmd.Name); err != nil {
-							_ = ShowSubcommandHelp(cmd)
-						}
-					}
-				}
-				return ctx, err
-			}
-		}
-	}
-
 	var subCmd *Command
 	if cmd.parsedArgs.Present() {
 		tracef("checking positional args %[1]q (cmd=%[2]q)", cmd.parsedArgs, cmd.Name)
@@ -337,6 +315,31 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 	//
 	// First, resolve the chain of nested commands up to the parent.
 	cmdChain := commandChain(cmd)
+
+	// Walk the parent chain to check mutually exclusive flag groups
+	// defined on ancestor commands, since persistent flags are inherited.
+	// This is done only by the innermost command, after it has parsed its
+	// own arguments, so that inherited flags given after a subcommand name
+	// are taken into account.
+	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
+		for _, grp := range pCmd.MutuallyExclusiveFlags {
+			if err := grp.check(cmd); err != nil {
+				if cmd.OnUsageError != nil {
+					err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
+				} else {
+					fmt.Fprintf(cmd.Root().ErrWriter, "Incorrect Usage: %s\n\n", err.Error())
+					if cmd.parent == nil {
+						_ = ShowRootCommandHelp(cmd)
+					} else {
+						if err := ShowCommandHelp(ctx, cmd.parent, cmd.Name); err != nil {
+							_ = ShowSubcommandHelp(cmd)
+						}
+					}
+				}
+				return ctx, err
+			}
+		}
+	}
 
 	printDeprecationWarnings(cmdChain)
 

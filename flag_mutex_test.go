@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newCommand() *Command {
@@ -127,6 +130,73 @@ func TestFlagMutuallyExclusiveFlags(t *testing.T) {
 			default:
 				t.Errorf("got invalid error type %T", err)
 			}
+		})
+	}
+}
+func TestFlagMutuallyExclusiveFlagsInheritedBySubcommand(t *testing.T) {
+	newRoot := func(actionRan *string) *Command {
+		return &Command{
+			Name: "root",
+			MutuallyExclusiveFlags: []MutuallyExclusiveFlags{
+				{
+					Required: true,
+					Flags: [][]Flag{
+						{&StringFlag{Name: "alpha"}},
+						{&StringFlag{Name: "beta"}},
+					},
+				},
+			},
+			Commands: []*Command{
+				{
+					Name: "sub",
+					Action: func(_ context.Context, cmd *Command) error {
+						*actionRan = cmd.String("alpha") + cmd.String("beta")
+						return nil
+					},
+					Commands: []*Command{
+						{
+							Name: "leaf",
+							Action: func(_ context.Context, cmd *Command) error {
+								*actionRan = cmd.String("alpha") + cmd.String("beta")
+								return nil
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		args   []string
+		errStr string
+		want   string
+	}{
+		{name: "flag before subcommand", args: []string{"root", "--alpha", "hello", "sub"}, want: "hello"},
+		{name: "flag after subcommand", args: []string{"root", "sub", "--alpha", "hello"}, want: "hello"},
+		{name: "flag after nested subcommand", args: []string{"root", "sub", "leaf", "--beta", "hi"}, want: "hi"},
+		{name: "flag between subcommands", args: []string{"root", "sub", "--alpha", "x", "leaf"}, want: "x"},
+		{name: "missing", args: []string{"root", "sub"}, errStr: "one of these flags needs to be provided: alpha"},
+		{name: "missing nested", args: []string{"root", "sub", "leaf"}, errStr: "one of these flags needs to be provided"},
+		{name: "both split across levels", args: []string{"root", "--alpha", "a", "sub", "--beta", "b"}, errStr: "option alpha cannot be set along with option beta"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var got string
+			cmd := newRoot(&got)
+			cmd.Writer = io.Discard
+			cmd.ErrWriter = io.Discard
+			err := cmd.Run(buildTestContext(t), test.args)
+			if test.errStr == "" {
+				require.NoError(t, err)
+				assert.Equal(t, test.want, got)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), test.errStr)
+			assert.Empty(t, got)
 		})
 	}
 }

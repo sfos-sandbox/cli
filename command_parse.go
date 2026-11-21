@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -129,11 +130,12 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 
 		shortOptionHandling := cmd.useShortOptionHandling()
 
+		firstRune, _ := utf8.DecodeRuneInString(firstArg[1:])
 		// stop parsing -- as short flags
-		if firstArg[1] == '-' {
+		if firstRune == '-' {
 			numMinuses++
 			shortOptionHandling = false
-		} else if !unicode.IsLetter(rune(firstArg[1])) {
+		} else if !unicode.IsLetter(firstRune) {
 			// this is not a flag
 			tracef("parseFlags not a unicode letter. Stop parsing")
 			posArgs = append(posArgs, rargs...)

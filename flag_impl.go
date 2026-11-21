@@ -131,14 +131,18 @@ func (f *FlagBase[T, C, V]) PostParse() error {
 
 	if !f.hasBeenSet {
 		if val, source, found := f.Sources.LookupWithSource(); found {
-			if val != "" || reflect.TypeOf(f.Value).Kind() == reflect.String {
+			kind := reflect.Invalid
+			if ty := reflect.TypeOf(f.Value); ty != nil {
+				kind = ty.Kind()
+			}
+			if val != "" || kind == reflect.String {
 				if err := f.Set(f.Name, val); err != nil {
 					return fmt.Errorf(
 						"could not parse %[1]q as %[2]T value from %[3]s for flag %[4]s: %[5]s",
 						val, f.Value, source, f.Name, err,
 					)
 				}
-			} else if val == "" && reflect.TypeOf(f.Value).Kind() == reflect.Bool {
+			} else if val == "" && kind == reflect.Bool {
 				_ = f.Set(f.Name, "false")
 			}
 
@@ -317,7 +321,7 @@ func (f *FlagBase[T, C, V]) SchemaType() string {
 func (f *FlagBase[T, C, V]) SchemaItemsType() string {
 	var zero T
 	t := reflect.TypeOf(zero)
-	if t.Kind() == reflect.Slice {
+	if t != nil && t.Kind() == reflect.Slice {
 		switch t.Elem().Kind() {
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:

@@ -472,6 +472,10 @@ func checkVersion(cmd *Command) bool {
 }
 
 func checkShellCompleteFlag(c *Command, arguments []string) (bool, []string) {
+	if len(arguments) == 0 {
+		return false, arguments
+	}
+
 	if (c.parent == nil && !c.EnableShellCompletion) || (c.parent != nil && !c.Root().shellCompletion) {
 		return false, arguments
 	}

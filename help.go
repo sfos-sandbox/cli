@@ -547,8 +547,10 @@ func wrap(input string, offset int, wrapAt int) string {
 	return strings.Join(ss, "\n")
 }
 
+// wrapLine measures widths in runes, not bytes, consistent with offset and
+// the tabwriter that aligns the help output.
 func wrapLine(input string, offset int, wrapAt int, padding string) string {
-	if wrapAt <= offset || len(input) <= wrapAt-offset {
+	if wrapAt <= offset || utf8.RuneCountInString(input) <= wrapAt-offset {
 		return input
 	}
 
@@ -560,14 +562,15 @@ func wrapLine(input string, offset int, wrapAt int, padding string) string {
 
 	var wrapped strings.Builder
 	wrapped.WriteString(words[0])
-	spaceLeft := lineWidth - len(words[0])
+	spaceLeft := lineWidth - utf8.RuneCountInString(words[0])
 	for _, word := range words[1:] {
-		if len(word)+1 > spaceLeft {
+		wordLen := utf8.RuneCountInString(word)
+		if wordLen+1 > spaceLeft {
 			wrapped.WriteString("\n" + padding + word)
-			spaceLeft = lineWidth - len(word)
+			spaceLeft = lineWidth - wordLen
 		} else {
 			wrapped.WriteString(" " + word)
-			spaceLeft -= 1 + len(word)
+			spaceLeft -= 1 + wordLen
 		}
 	}
 

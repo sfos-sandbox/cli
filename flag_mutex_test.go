@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -127,6 +129,50 @@ func TestFlagMutuallyExclusiveFlags(t *testing.T) {
 			default:
 				t.Errorf("got invalid error type %T", err)
 			}
+		})
+	}
+}
+
+func TestRequiredMutuallyExclusiveFlagsOnParent(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "before subcommand", args: []string{"root", "--alpha", "hello", "sub"}},
+		{name: "after subcommand", args: []string{"root", "sub", "--alpha", "hello"}},
+		{name: "missing", args: []string{"root", "sub"}, wantErr: "one of these flags needs to be provided: alpha"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ran := false
+			root := &Command{
+				Name:      "root",
+				Writer:    io.Discard,
+				ErrWriter: io.Discard,
+				MutuallyExclusiveFlags: []MutuallyExclusiveFlags{{
+					Required: true,
+					Flags:    [][]Flag{{&StringFlag{Name: "alpha"}}},
+				}},
+				Commands: []*Command{{
+					Name: "sub",
+					Action: func(_ context.Context, cmd *Command) error {
+						ran = true
+						assert.Equal(t, "hello", cmd.String("alpha"))
+						return nil
+					},
+				}},
+			}
+
+			err := root.Run(buildTestContext(t), tt.args)
+			if tt.wantErr != "" {
+				assert.EqualError(t, err, tt.wantErr)
+				assert.False(t, ran)
+				return
+			}
+			assert.NoError(t, err)
+			assert.True(t, ran)
 		})
 	}
 }

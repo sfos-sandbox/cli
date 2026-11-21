@@ -195,7 +195,7 @@ func (bif *BoolWithInverseFlag) String() string {
 	prefix := "--"
 
 	// single character flags are prefixed with `-` instead of `--`
-	if len(bif.Name) == 1 {
+	if isSingleRuneName(bif.Name) {
 		prefix = "-"
 	}
 
@@ -210,7 +210,7 @@ func (bif *BoolWithInverseFlag) String() string {
 	var aliasParts []string
 	for _, alias := range bif.Aliases {
 		aPrefix := "--"
-		if len(alias) == 1 {
+		if isSingleRuneName(alias) {
 			aPrefix = "-"
 		}
 		aliasParts = append(aliasParts, aPrefix+alias)

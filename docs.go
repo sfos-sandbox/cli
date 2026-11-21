@@ -5,10 +5,18 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"unicode/utf8"
 )
 
+// isSingleRuneName reports whether a flag name consists of exactly one
+// rune. Such names are treated as short flags (single "-" prefix) whether
+// the rune is ASCII or not.
+func isSingleRuneName(name string) bool {
+	return utf8.RuneCountInString(name) == 1
+}
+
 func prefixFor(name string) (prefix string) {
-	if len(name) == 1 {
+	if isSingleRuneName(name) {
 		prefix = "-"
 	} else {
 		prefix = "--"

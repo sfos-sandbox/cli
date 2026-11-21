@@ -225,9 +225,8 @@ func HandleExitCoder(err error)
     for the ExitCoder interface, and OsExiter will be called with the last exit
     code found, or exit code 1 if no ExitCoder is found.
 
-    Errors that wrap an ExitCoder or a MultiError (for example with fmt.Errorf
-    and the %w verb) are handled the same way; the full message of the given
-    error, including any wrapping context, is printed.
+    An ExitCoder that is wrapped with fmt.Errorf("%w") is handled the same way,
+    so adding context to an error does not lose its exit code.
 
     This function is the default error-handling behavior for a Command.
 

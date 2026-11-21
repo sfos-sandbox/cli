@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -134,8 +135,8 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 		if firstArg[1] == '-' {
 			numMinuses++
 			shortOptionHandling = false
-		} else if firstRune, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(firstRune) {
-			// this is not a flag
+		} else if firstRune, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(firstRune) && !cmd.isDefinedSingleDashFlag(firstArg[1:], shortOptionHandling) {
+			// this is not a flag, e.g. a negative number
 			tracef("parseFlags not a unicode letter. Stop parsing")
 			posArgs = append(posArgs, rargs...)
 			return &stringSliceArgs{posArgs}, nil
@@ -271,4 +272,40 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 
 	tracef("returning-2 (cmd=%[1]q) args %[2]q", cmd.Name, posArgs)
 	return &stringSliceArgs{posArgs}, nil
+}
+
+// isDefinedSingleDashFlag reports whether name, the text after a single dash
+// (possibly with an "=value" suffix), names a defined flag. It is used for
+// arguments that do not start with a letter, such as "-4" or "-1", which are
+// otherwise treated as positional arguments (e.g. negative numbers). With
+// short option handling, a group such as "-4v" counts only when every rune of
+// it is a defined flag.
+func (cmd *Command) isDefinedSingleDashFlag(name string, shortOptionHandling bool) bool {
+	name, _, _ = strings.Cut(name, "=")
+	if name == "" {
+		return false
+	}
+	if cmd.hasAppliedFlag(name) {
+		return true
+	}
+	if !shortOptionHandling {
+		return false
+	}
+	for _, c := range name {
+		if !cmd.hasAppliedFlag(string(c)) {
+			return false
+		}
+	}
+	return true
+}
+
+// hasAppliedFlag is like lookupAppliedFlag but has no side effects: it does
+// not trigger OnInvalidFlag when the flag is not found.
+func (cmd *Command) hasAppliedFlag(name string) bool {
+	for _, f := range cmd.appliedFlags {
+		if slices.Contains(f.Names(), name) {
+			return true
+		}
+	}
+	return false
 }

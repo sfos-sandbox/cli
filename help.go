@@ -79,59 +79,27 @@ func buildHelpCommand(withAction bool) *Command {
 }
 
 func helpCommandAction(ctx context.Context, cmd *Command) error {
-	args := cmd.Args()
-	firstArg := args.First()
+	return showHelp(ctx, cmd, cmd.Args().First())
+}
 
-	tracef("doing help for cmd %[1]q with args %[2]q", cmd, args)
-
-	// helpCommandAction is triggered in several ways:
-	//
-	//   * the command has no user-defined Action (default action fallback)
-	//   * the --help / -h flag was parsed (via cmd.checkHelp())
-	//   * the "help" subcommand (or "h" alias) was dispatched
-	//
-	// Possible invocations:
-	//
-	//   $ app                  # default action; show root help
-	//   $ app --help / -h      # flag; show root help (ignores subsequent args)
-	//   $ app help / h         # subcommand; show root help
-	//   $ app help / h foo     # subcommand; show help for subcommand "foo"
-	//   $ app --help / -h foo  # flag; show help for subcommand "foo"
-	//   $ app foo --help / -h  # flag on subcommand; show help for "foo"
-	//   $ app foo help / h     # subcommand on subcommand; show help for "foo"
-	//   $ app foo (no action)  # default action on subcommand; show help for "foo"
-
-	// Case 4. when executing a help command set the context to parent
-	// to allow resolution of subsequent args. This will transform
-	// $ app help foo
-	//     to
-	// $ app foo
-	// which will then be handled as case 3
+func showHelp(ctx context.Context, cmd *Command, topic string) error {
+	// The built-in help command resolves topics relative to its parent.
 	if cmd.parent != nil && cmd.builtInHelp {
 		tracef("setting cmd to cmd.parent")
 		cmd = cmd.parent
 	}
 
-	// Case 4. $ app help foo
-	// foo is the command for which help needs to be shown
-	if firstArg != "" {
-		/*	if firstArg == "--" {
-			return nil
-		}*/
-		tracef("returning ShowCommandHelp with %[1]q", firstArg)
-		return ShowCommandHelp(ctx, cmd, firstArg)
+	if topic != "" {
+		tracef("returning ShowCommandHelp with %[1]q", topic)
+		return ShowCommandHelp(ctx, cmd, topic)
 	}
 
-	// Case 1 & 2
-	// Special case when running help on main app itself as opposed to individual
-	// commands/subcommands
 	if cmd.parent == nil {
 		tracef("returning ShowRootCommandHelp")
 		_ = ShowRootCommandHelp(cmd)
 		return nil
 	}
 
-	// Case 3, 5
 	if len(cmd.VisibleCommands()) == 0 {
 		tracef("running HelpPrinter with command %[1]q", cmd.Name)
 		return ShowCommandHelp(ctx, cmd.parent, cmd.Name)

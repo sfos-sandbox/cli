@@ -300,6 +300,40 @@ func Test_Version_Custom_Flags(t *testing.T) {
 	require.Len(t, out.String(), 0)
 }
 
+func TestHelpFlagWithPositionalArguments(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"app", "command", "--help"}, "subcommand usage"},
+		{[]string{"app", "command", "ciao", "--help"}, "subcommand usage"},
+		{[]string{"app", "command", "--help", "ciao"}, "subcommand usage"},
+		{[]string{"app", "--help", "ciao"}, "root usage"},
+		{[]string{"app", "ciao", "-h"}, "root usage"},
+		{[]string{"app", "--help", "alias"}, "subcommand usage"},
+	} {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			var out bytes.Buffer
+			cmd := &Command{
+				Name:   "app",
+				Usage:  "root usage",
+				Writer: &out,
+				Commands: []*Command{{
+					Name:      "command",
+					Aliases:   []string{"alias"},
+					Usage:     "subcommand usage",
+					Arguments: []Argument{&StringArg{Name: "arg1", Required: true}},
+				}},
+			}
+			require.NoError(t, cmd.Run(buildTestContext(t), tc.args))
+			require.Contains(t, out.String(), tc.want)
+			if tc.want == "subcommand usage" {
+				require.NotContains(t, out.String(), "root usage")
+			}
+		})
+	}
+}
+
 func Test_helpCommand_Action_ErrorIfNoTopic(t *testing.T) {
 	cmd := &Command{}
 

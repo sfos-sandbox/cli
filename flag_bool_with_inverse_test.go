@@ -603,3 +603,36 @@ func TestBoolWithInverseFlagCount(t *testing.T) {
 		}
 	}
 }
+
+func TestBoolWithInverseShortOptionHandling(t *testing.T) {
+	tests := []struct {
+		args    []string
+		verbose bool
+		c       bool
+	}{
+		{args: []string{"app", "-v"}, verbose: true},
+		{args: []string{"app", "-cv"}, verbose: true, c: true},
+		{args: []string{"app", "-vc"}, verbose: true, c: true},
+		{args: []string{"app", "-c"}, verbose: false, c: true},
+		{args: []string{"app", "-c", "--no-verbose"}, verbose: false, c: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			var verbose bool
+			cmd := &Command{
+				UseShortOptionHandling: true,
+				Flags: []Flag{
+					&BoolWithInverseFlag{Name: "verbose", Aliases: []string{"v"}, Destination: &verbose},
+					&BoolFlag{Name: "c"},
+				},
+				Action: func(context.Context, *Command) error { return nil },
+			}
+
+			require.NoError(t, cmd.Run(buildTestContext(t), tc.args))
+			require.Equal(t, tc.verbose, verbose)
+			require.Equal(t, tc.verbose, cmd.Bool("verbose"))
+			require.Equal(t, tc.c, cmd.Bool("c"))
+		})
+	}
+}

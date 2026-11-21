@@ -328,6 +328,34 @@ func Test_helpCommand_InHelpOutput(t *testing.T) {
 	require.Contains(t, s, "--help, -h", "missing \"--help, --h\"")
 }
 
+func TestHelpCommand_AliasConflict(t *testing.T) {
+	output := &bytes.Buffer{}
+	historyRan := false
+	cmd := &Command{
+		Name:   "app",
+		Writer: output,
+		Commands: []*Command{
+			{
+				Name:    "history",
+				Aliases: []string{"h"},
+				Action: func(context.Context, *Command) error {
+					historyRan = true
+					return nil
+				},
+			},
+		},
+	}
+
+	ctx := buildTestContext(t)
+	require.NoError(t, cmd.Run(ctx, []string{"app", "h"}))
+	require.True(t, historyRan)
+
+	require.NoError(t, cmd.Run(ctx, []string{"app", "help"}))
+	require.Contains(t, output.String(), "history, h")
+	require.Contains(t, output.String(), UsageCommandHelp)
+	require.NotContains(t, output.String(), "help, h")
+}
+
 func TestHelpCommand_FullName(t *testing.T) {
 	testCases := []struct {
 		name     string

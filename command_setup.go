@@ -248,6 +248,9 @@ func (cmd *Command) ensureHelp() {
 	if !cmd.hideHelp() {
 		if cmd.Command(helpCommand.Name) == nil {
 			if !cmd.hideHelpCommand() {
+				if cmd.Command(helpAlias) != nil {
+					helpCommand.Aliases = nil
+				}
 				tracef("appending helpCommand (cmd=%[1]q)", cmd.Name)
 				cmd.appendCommand(helpCommand)
 			}

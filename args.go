@@ -6,7 +6,7 @@ import (
 )
 
 type Args interface {
-	// Get returns the nth argument, or else a blank string
+	// Get returns the nth argument, or an empty string if the index is out of range.
 	Get(n int) string
 	// First returns the first argument, or else a blank string
 	First() string
@@ -26,7 +26,7 @@ type stringSliceArgs struct {
 }
 
 func (a *stringSliceArgs) Get(n int) string {
-	if len(a.v) > n {
+	if n >= 0 && n < len(a.v) {
 		return a.v[n]
 	}
 	return ""

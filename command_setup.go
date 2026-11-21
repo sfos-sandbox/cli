@@ -25,9 +25,19 @@ func (cmd *Command) setupDefaults(osArgs []string) {
 	}
 
 	if cmd.Name == "" && isRoot {
-		name := filepath.Base(osArgs[0])
-		tracef("setting cmd.Name from first arg basename (cmd=%[1]q)", name)
-		cmd.Name = name
+		// osArgs may be empty (e.g. cmd.Run(ctx, []string{})); fall back to
+		// the process name, and leave Name empty if that is unavailable too.
+		var arg0 string
+		if len(osArgs) > 0 {
+			arg0 = osArgs[0]
+		} else if len(os.Args) > 0 {
+			arg0 = os.Args[0]
+		}
+		if arg0 != "" {
+			name := filepath.Base(arg0)
+			tracef("setting cmd.Name from first arg basename (cmd=%[1]q)", name)
+			cmd.Name = name
+		}
 	}
 
 	if cmd.Usage == "" && isRoot {

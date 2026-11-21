@@ -120,10 +120,11 @@ func TestFlag_SchemaType_Map(t *testing.T) {
 }
 
 func TestFlag_SchemaType_Generic(t *testing.T) {
-	f := &GenericFlag{}
+	f := &GenericFlag{Name: "gen"}
 	st, ok := any(f).(SchemaTyper)
 	assert.True(t, ok)
 	assert.Equal(t, "", st.SchemaType())
+	assert.Equal(t, "", f.SchemaItemsType())
 }
 
 func TestExtFlag_SchemaType(t *testing.T) {

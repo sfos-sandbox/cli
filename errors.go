@@ -168,39 +168,58 @@ func (ee *exitError) Unwrap() error {
 //
 // This function is the default error-handling behavior for a Command.
 func HandleExitCoder(err error) {
-	if err == nil {
-		return
-	}
-
-	if exitErr, ok := errors.AsType[ExitCoder](err); ok {
+	switch matched := findExitError(err).(type) {
+	case ExitCoder:
 		if msg := err.Error(); msg != "" {
-			if _, ok := exitErr.(ErrorFormatter); ok {
+			if _, ok := matched.(ErrorFormatter); ok {
 				_, _ = fmt.Fprintf(ErrWriter, "%+v\n", err)
 			} else {
 				_, _ = fmt.Fprintln(ErrWriter, err)
 			}
 		}
-		OsExiter(exitErr.ExitCode())
-		return
-	}
-
-	if multiErr, ok := errors.AsType[MultiError](err); ok {
-		code := handleMultiError(multiErr)
-		OsExiter(code)
-		return
+		OsExiter(matched.ExitCode())
+	case MultiError:
+		OsExiter(handleMultiError(err, matched, 1, true))
 	}
 }
 
-func handleMultiError(multiErr MultiError) int {
-	code := 1
-	for _, merr := range multiErr.Errors() {
-		if multiErr2, ok := errors.AsType[MultiError](merr); ok {
-			code = handleMultiError(multiErr2)
-		} else if merr != nil {
-			fmt.Fprintln(ErrWriter, merr)
-			if exitErr, ok := errors.AsType[ExitCoder](merr); ok {
-				code = exitErr.ExitCode()
+// Match either interface before descending so an aggregate controls how its
+// children are handled and an ExitCoder controls the code of its own error.
+func findExitError(err error) error {
+	switch err := err.(type) {
+	case ExitCoder, MultiError:
+		return err
+	case interface{ Unwrap() []error }:
+		for _, child := range err.Unwrap() {
+			if matched := findExitError(child); matched != nil {
+				return matched
 			}
+		}
+		return nil
+	default:
+		if child := errors.Unwrap(err); child != nil {
+			return findExitError(child)
+		}
+		return nil
+	}
+}
+
+func handleMultiError(err error, multiErr MultiError, code int, printErrors bool) int {
+	if _, direct := err.(MultiError); !direct && printErrors {
+		fmt.Fprintln(ErrWriter, err)
+		printErrors = false
+	}
+
+	for _, child := range multiErr.Errors() {
+		switch matched := findExitError(child).(type) {
+		case ExitCoder:
+			code = matched.ExitCode()
+		case MultiError:
+			code = handleMultiError(child, matched, code, printErrors)
+			continue
+		}
+		if child != nil && printErrors {
+			fmt.Fprintln(ErrWriter, child)
 		}
 	}
 	return code

@@ -1307,6 +1307,60 @@ App UsageText`,
 	assert.Contains(t, output.String(), expected, "expected output to include usage text")
 }
 
+func TestHelpCommand_UserCommandClaimsHelpAlias(t *testing.T) {
+	tests := []struct {
+		name    string
+		userCmd *Command
+	}{
+		{name: "alias", userCmd: &Command{Name: "history", Aliases: []string{"h"}, Usage: "show history"}},
+		{name: "name", userCmd: &Command{Name: "h", Usage: "show history"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ran := false
+			tc.userCmd.Action = func(context.Context, *Command) error {
+				ran = true
+				return nil
+			}
+			out := &bytes.Buffer{}
+			cmd := &Command{
+				Name:     "app",
+				Writer:   out,
+				Commands: []*Command{tc.userCmd},
+			}
+
+			require.NoError(t, cmd.Run(buildTestContext(t), []string{"app", "h"}))
+			assert.True(t, ran, "expected user command to run for 'h'")
+
+			out.Reset()
+			require.NoError(t, cmd.Run(buildTestContext(t), []string{"app", "help"}))
+			help := out.String()
+			assert.Contains(t, help, "\n   help ")
+			assert.NotContains(t, help, "help, h")
+			assert.Contains(t, help, "   "+strings.Join(tc.userCmd.Names(), ", ")+" ")
+
+			helpCmd := cmd.Command("help")
+			require.NotNil(t, helpCmd)
+			assert.Empty(t, helpCmd.Aliases)
+			assert.Same(t, tc.userCmd, cmd.Command("h"))
+		})
+	}
+}
+
+func TestHelpCommand_KeepsHelpAliasWhenFree(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &Command{
+		Name:     "app",
+		Writer:   out,
+		Commands: []*Command{{Name: "history", Aliases: []string{"hist"}}},
+	}
+
+	require.NoError(t, cmd.Run(buildTestContext(t), []string{"app", "help"}))
+	assert.Contains(t, out.String(), "help, h")
+	assert.Equal(t, []string{"h"}, cmd.Command("help").Aliases)
+}
+
 func TestHideHelpCommand(t *testing.T) {
 	cmd := &Command{
 		HideHelpCommand: true,

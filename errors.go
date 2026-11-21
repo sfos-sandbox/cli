@@ -161,8 +161,8 @@ func (ee *exitError) Unwrap() error {
 
 // HandleExitCoder handles errors implementing ExitCoder by printing their
 // message and calling OsExiter with the given exit code. The ExitCoder may be
-// wrapped (for example with fmt.Errorf and %w); it is located with [errors.As]
-// and the full message of the given error is printed.
+// wrapped (for example with fmt.Errorf and %w); the chain of wrapped errors is
+// followed and the full message of the given error is printed.
 //
 // If the given error instead implements (or wraps) MultiError, each error will be checked
 // for the ExitCoder interface, and OsExiter will be called with the last exit
@@ -174,8 +174,9 @@ func HandleExitCoder(err error) {
 		return
 	}
 
-	var exitErr ExitCoder
-	if errors.As(err, &exitErr) {
+	exitErr, multiErr, wrapped := findExitCoderOrMultiError(err)
+	switch {
+	case exitErr != nil:
 		if msg := err.Error(); msg != "" {
 			if _, ok := exitErr.(ErrorFormatter); ok {
 				_, _ = fmt.Fprintf(ErrWriter, "%+v\n", err)
@@ -184,28 +185,65 @@ func HandleExitCoder(err error) {
 			}
 		}
 		OsExiter(exitErr.ExitCode())
-		return
-	}
-
-	var multiErr MultiError
-	if errors.As(err, &multiErr) {
-		code := handleMultiError(multiErr)
-		OsExiter(code)
-		return
+	case multiErr != nil:
+		if wrapped {
+			// The MultiError is wrapped: keep the wrapper's message.
+			_, _ = fmt.Fprintln(ErrWriter, err)
+			OsExiter(handleMultiError(multiErr, false))
+			return
+		}
+		OsExiter(handleMultiError(multiErr, true))
 	}
 }
 
-func handleMultiError(multiErr MultiError) int {
+// findExitCoderOrMultiError follows the chain of err (through Unwrap() error)
+// and returns the first error in it that is an ExitCoder or a MultiError. At
+// most one of the first two results is non-nil; wrapped reports whether the
+// match is not err itself. The outermost match wins, so an ExitCoder
+// whose message is a MultiError stays an ExitCoder, and a MultiError that also
+// implements Unwrap() []error is handled as a MultiError (last exit code wins)
+// rather than searched for its first ExitCoder.
+func findExitCoderOrMultiError(err error) (exitErr ExitCoder, multiErr MultiError, wrapped bool) {
+	for depth := 0; err != nil; depth++ {
+		if e, ok := err.(ExitCoder); ok {
+			return e, nil, depth > 0
+		}
+		if m, ok := err.(MultiError); ok {
+			return nil, m, depth > 0
+		}
+		err = errors.Unwrap(err)
+	}
+	return nil, nil, false
+}
+
+// handleMultiError returns the last exit code found in multiErr, or 1 if
+// there is none. When print is true each error is written to ErrWriter.
+func handleMultiError(multiErr MultiError, print bool) int {
 	code := 1
 	for _, merr := range multiErr.Errors() {
-		var multiErr2 MultiError
-		var exitErr ExitCoder
-		if errors.As(merr, &multiErr2) {
-			code = handleMultiError(multiErr2)
-		} else if merr != nil {
-			fmt.Fprintln(ErrWriter, merr)
-			if errors.As(merr, &exitErr) {
-				code = exitErr.ExitCode()
+		if merr == nil {
+			continue
+		}
+		exitErr, nested, wrapped := findExitCoderOrMultiError(merr)
+		switch {
+		case exitErr != nil:
+			if print {
+				_, _ = fmt.Fprintln(ErrWriter, merr)
+			}
+			code = exitErr.ExitCode()
+		case nested != nil:
+			if !wrapped {
+				code = handleMultiError(nested, print)
+				continue
+			}
+			// A wrapped MultiError is printed with its wrapper's message.
+			if print {
+				_, _ = fmt.Fprintln(ErrWriter, merr)
+			}
+			code = handleMultiError(nested, false)
+		default:
+			if print {
+				_, _ = fmt.Fprintln(ErrWriter, merr)
 			}
 		}
 	}

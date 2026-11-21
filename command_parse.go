@@ -78,9 +78,9 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 	for rargs := args.Slice(); len(rargs) > 0; rargs = rargs[1:] {
 		tracef("rearrange:1 (cmd=%[1]q) %[2]q", cmd.Name, rargs)
 
-		firstArg := strings.TrimSpace(rargs[0])
+		firstArg := rargs[0]
 		if len(firstArg) == 0 {
-			posArgs = append(posArgs, rargs[0])
+			posArgs = append(posArgs, firstArg)
 			continue
 		}
 

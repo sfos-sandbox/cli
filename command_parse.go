@@ -134,8 +134,10 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 		if firstArg[1] == '-' {
 			numMinuses++
 			shortOptionHandling = false
-		} else if firstRune, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(firstRune) {
-			// this is not a flag
+		} else if firstRune, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(firstRune) &&
+			!cmd.isDefinedSingleDashFlag(firstArg[1:], shortOptionHandling) {
+			// this is not a flag (e.g. a negative number), unless it names a
+			// defined flag such as -4 or -1
 			tracef("parseFlags not a unicode letter. Stop parsing")
 			posArgs = append(posArgs, rargs...)
 			return &stringSliceArgs{posArgs}, nil

@@ -469,6 +469,41 @@ func (cmd *Command) lookupAppliedFlag(name string) Flag {
 	return nil
 }
 
+// hasAppliedFlag reports whether a flag with the given name has been applied,
+// without the side effects of lookupAppliedFlag.
+func (cmd *Command) hasAppliedFlag(name string) bool {
+	for _, f := range cmd.appliedFlags {
+		if slices.Contains(f.Names(), name) {
+			return true
+		}
+	}
+	return false
+}
+
+// isDefinedSingleDashFlag reports whether arg (a single-dash argument with the
+// dash removed) names a defined flag, or, with short option handling, a group
+// of defined short flags. It lets flags whose names do not start with a letter,
+// such as -4 or -1, be parsed while other such arguments (e.g. negative
+// numbers) are still treated as positional.
+func (cmd *Command) isDefinedSingleDashFlag(arg string, shortOptionHandling bool) bool {
+	name, _, _ := strings.Cut(arg, "=")
+	if name == "" {
+		return false
+	}
+	if cmd.hasAppliedFlag(name) {
+		return true
+	}
+	if !shortOptionHandling {
+		return false
+	}
+	for _, c := range name {
+		if !cmd.hasAppliedFlag(string(c)) {
+			return false
+		}
+	}
+	return true
+}
+
 func (cmd *Command) checkRequiredFlag(f Flag) (bool, string) {
 	if rf, ok := f.(RequiredFlag); ok && rf.IsRequired() {
 		flagName := f.Names()[0]

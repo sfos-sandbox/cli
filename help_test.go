@@ -454,7 +454,7 @@ func TestShowRootCommandHelp_CommandAliases(t *testing.T) {
 	require.Contains(t, out.String(), "frobbly, fr, frob")
 }
 
-func TestHelpCommandYieldsAliasToUserCommand(t *testing.T) {
+func TestHelpCommandGivesUpAliasOnClash(t *testing.T) {
 	out := &bytes.Buffer{}
 	historyRan := false
 

@@ -2455,3 +2455,49 @@ func skipIfNoTemplates(t *testing.T) {
 		t.Skip("custom templates are not supported with urfave_cli_no_template build tag")
 	}
 }
+
+func TestHelpFlagIgnoresNonCommandArgs(t *testing.T) {
+	newCmd := func(out *bytes.Buffer) *Command {
+		return &Command{
+			Name:   "app",
+			Usage:  "root usage",
+			Writer: out,
+			Commands: []*Command{
+				{
+					Name:      "command",
+					Usage:     "command usage",
+					Arguments: []Argument{&StringArg{Name: "arg1"}},
+					Action:    func(context.Context, *Command) error { return nil },
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		args     []string
+		expected string
+	}{
+		{args: []string{"app", "command", "--help"}, expected: "app command - command usage"},
+		{args: []string{"app", "command", "ciao", "--help"}, expected: "app command - command usage"},
+		{args: []string{"app", "command", "--help", "ciao"}, expected: "app command - command usage"},
+		{args: []string{"app", "command", "ciao", "-h"}, expected: "app command - command usage"},
+		{args: []string{"app", "--help", "ciao"}, expected: "app - root usage"},
+		{args: []string{"app", "ciao", "-h"}, expected: "app - root usage"},
+		{args: []string{"app", "--help", "command"}, expected: "app command - command usage"},
+	}
+
+	for _, tc := range tests {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			out := &bytes.Buffer{}
+			err := newCmd(out).Run(buildTestContext(t), tc.args)
+			require.NoError(t, err)
+			assert.Contains(t, out.String(), tc.expected)
+		})
+	}
+
+	t.Run("help subcommand still reports unknown topic", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		err := newCmd(out).Run(buildTestContext(t), []string{"app", "help", "ciao"})
+		require.ErrorContains(t, err, "No help topic for 'ciao'")
+	})
+}

@@ -122,6 +122,26 @@ func helpCommandAction(ctx context.Context, cmd *Command) error {
 		return ShowCommandHelp(ctx, cmd, firstArg)
 	}
 
+	return showHelpForCommand(ctx, cmd)
+}
+
+// helpFlagAction is run when the help flag (--help / -h) was set on cmd.
+// Positional arguments that do not name a subcommand of cmd are ignored, so
+// that e.g. "app cmd arg --help" shows the help of "cmd" instead of failing
+// with an unknown help topic.
+func helpFlagAction(ctx context.Context, cmd *Command) error {
+	if !cmd.builtInHelp {
+		if firstArg := cmd.Args().First(); firstArg != "" && cmd.Command(firstArg) == nil {
+			tracef("ignoring non-command arg %[1]q for help of cmd %[2]q", firstArg, cmd.Name)
+			return showHelpForCommand(ctx, cmd)
+		}
+	}
+
+	return helpCommandAction(ctx, cmd)
+}
+
+// showHelpForCommand shows the help of cmd itself.
+func showHelpForCommand(ctx context.Context, cmd *Command) error {
 	// Case 1 & 2
 	// Special case when running help on main app itself as opposed to individual
 	// commands/subcommands

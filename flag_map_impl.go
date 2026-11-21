@@ -69,7 +69,10 @@ func (i *MapBase[T, C, VC]) Set(value string) error {
 
 	if s, ok := strings.CutPrefix(value, slPfx()); ok {
 		// Deserializing assumes overwrite
-		_ = json.Unmarshal([]byte(s), &i.dict)
+		// Unmarshal into the destination itself (not the pointer to it) so that
+		// a serialized empty value ("null") resets the destination instead of
+		// disconnecting this value from it.
+		_ = json.Unmarshal([]byte(s), i.dict)
 		i.hasBeenSet = true
 		return nil
 	}
@@ -97,6 +100,10 @@ func (i *MapBase[T, C, VC]) Set(value string) error {
 		}
 		if err := i.value.Set(value); err != nil {
 			return err
+		}
+		if *i.dict == nil {
+			// may have been reset by deserializing an empty value
+			*i.dict = map[string]T{}
 		}
 		(*i.dict)[key] = i.value.Get().(T)
 	}

@@ -134,11 +134,6 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 		if firstArg[1] == '-' {
 			numMinuses++
 			shortOptionHandling = false
-		} else if firstRune, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(firstRune) {
-			// this is not a flag
-			tracef("parseFlags not a unicode letter. Stop parsing")
-			posArgs = append(posArgs, rargs...)
-			return &stringSliceArgs{posArgs}, nil
 		}
 
 		tracef("parseFlags (shortOptionHandling=%[1]q)", shortOptionHandling)
@@ -156,6 +151,15 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 		tracef("flagName:2 (fName=%[1]q) (fVal=%[2]q)", flagName, flagVal)
 
 		f := cmd.lookupAppliedFlag(flagName)
+		if numMinuses == 1 {
+			firstRune, _ := utf8.DecodeRuneInString(firstArg[1:])
+			// Keep unregistered negative numbers and other non-letter tokens as operands.
+			if !unicode.IsLetter(firstRune) && !(unicode.IsDigit(firstRune) && f != nil) {
+				tracef("parseFlags encountered a non-flag token. Stop parsing")
+				posArgs = append(posArgs, rargs...)
+				return &stringSliceArgs{posArgs}, nil
+			}
+		}
 		// found a flag matching given flagName
 		if f != nil {
 			tracef("Trying flag type (fName=%[1]q) (type=%[2]T)", flagName, f)

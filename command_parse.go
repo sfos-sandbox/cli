@@ -150,16 +150,22 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 
 		tracef("flagName:2 (fName=%[1]q) (fVal=%[2]q)", flagName, flagVal)
 
-		f := cmd.lookupAppliedFlag(flagName)
+		lookup := cmd.lookupAppliedFlag
+		digitOption := false
 		if numMinuses == 1 {
 			firstRune, _ := utf8.DecodeRuneInString(firstArg[1:])
-			// Keep unregistered negative numbers and other non-letter tokens as operands.
-			if !unicode.IsLetter(firstRune) && !(unicode.IsDigit(firstRune) && f != nil) {
+			digitOption = unicode.IsDigit(firstRune)
+			if digitOption {
+				// A digit-prefixed token may be an operand. Probe without
+				// reporting invalid flag access.
+				lookup = cmd.findAppliedFlag
+			} else if !unicode.IsLetter(firstRune) {
 				tracef("parseFlags encountered a non-flag token. Stop parsing")
 				posArgs = append(posArgs, rargs...)
 				return &stringSliceArgs{posArgs}, nil
 			}
 		}
+		f := lookup(flagName)
 		// found a flag matching given flagName
 		if f != nil {
 			tracef("Trying flag type (fName=%[1]q) (type=%[2]T)", flagName, f)
@@ -208,7 +214,7 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 			}
 			// When DefaultCommand is set, pass unknown flags through as positional args
 			// so the default command can handle them (fixes #2249)
-			if cmd.DefaultCommand != "" {
+			if digitOption || cmd.DefaultCommand != "" {
 				posArgs = append(posArgs, rargs...)
 				return &stringSliceArgs{posArgs}, nil
 			}
@@ -224,8 +230,8 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 		// otherwise a group holding an unknown flag is reported by whichever
 		// of its flags happens to be examined first
 		for index, c := range flagName {
-			if sf := cmd.lookupAppliedFlag(string(c)); sf == nil {
-				if index == 0 && cmd.DefaultCommand != "" {
+			if lookup(string(c)) == nil {
+				if digitOption || (index == 0 && cmd.DefaultCommand != "") {
 					posArgs = append(posArgs, rargs...)
 					return &stringSliceArgs{posArgs}, nil
 				}

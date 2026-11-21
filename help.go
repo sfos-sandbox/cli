@@ -79,6 +79,18 @@ func buildHelpCommand(withAction bool) *Command {
 }
 
 func helpCommandAction(ctx context.Context, cmd *Command) error {
+	return showHelp(ctx, cmd, false)
+}
+
+// helpFlagAction is run when help was requested through the --help / -h
+// flag of cmd.
+func helpFlagAction(ctx context.Context, cmd *Command) error {
+	return showHelp(ctx, cmd, true)
+}
+
+// showHelp implements helpCommandAction and helpFlagAction. fromFlag
+// reports whether help was requested through the --help / -h flag.
+func showHelp(ctx context.Context, cmd *Command, fromFlag bool) error {
 	args := cmd.Args()
 	firstArg := args.First()
 
@@ -108,13 +120,20 @@ func helpCommandAction(ctx context.Context, cmd *Command) error {
 	// $ app foo
 	// which will then be handled as case 3
 	if cmd.parent != nil && cmd.builtInHelp {
+		fromFlag = false
 		tracef("setting cmd to cmd.parent")
 		cmd = cmd.parent
 	}
 
 	// Case 4. $ app help foo
-	// foo is the command for which help needs to be shown
-	if firstArg != "" {
+	// foo is the command for which help needs to be shown.
+	//
+	// When help was requested through the --help / -h flag, the first
+	// argument is only treated as a help topic if it names a subcommand.
+	// Otherwise it is a regular (positional) argument of the command being
+	// run, e.g. "$ app foo bar --help", and is ignored so that the help of
+	// the current command is shown.
+	if firstArg != "" && (!fromFlag || cmd.Command(firstArg) != nil) {
 		/*	if firstArg == "--" {
 			return nil
 		}*/

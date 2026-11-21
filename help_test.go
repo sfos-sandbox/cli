@@ -399,6 +399,65 @@ func TestHelpCommand_FullName(t *testing.T) {
 	}
 }
 
+func TestHelpFlag_WithPositionalArgument(t *testing.T) {
+	buildCmd := func(out *bytes.Buffer) *Command {
+		var arg1 string
+		return &Command{
+			Name:      "app",
+			Usage:     "the root command",
+			Writer:    out,
+			ErrWriter: out,
+			Commands: []*Command{
+				{
+					Name:      "command",
+					Usage:     "the subcommand",
+					Arguments: []Argument{&StringArg{Name: "arg1", Destination: &arg1}},
+					Action: func(context.Context, *Command) error {
+						return errors.New("action must not run when help is requested")
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{args: []string{"app", "command", "--help"}, want: "app command - the subcommand"},
+		{args: []string{"app", "command", "ciao", "--help"}, want: "app command - the subcommand"},
+		{args: []string{"app", "command", "--help", "ciao"}, want: "app command - the subcommand"},
+		{args: []string{"app", "command", "ciao", "-h"}, want: "app command - the subcommand"},
+		{args: []string{"app", "command", "-h", "ciao"}, want: "app command - the subcommand"},
+		{args: []string{"app", "--help", "ciao"}, want: "app - the root command"},
+		{args: []string{"app", "ciao", "-h"}, want: "app - the root command"},
+		{args: []string{"app", "-h", "ciao"}, want: "app - the root command"},
+		// an argument naming a subcommand still selects that subcommand's help
+		{args: []string{"app", "--help", "command"}, want: "app command - the subcommand"},
+	}
+
+	for _, tc := range tests {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			out := &bytes.Buffer{}
+			err := buildCmd(out).Run(buildTestContext(t), tc.args)
+			require.NoError(t, err)
+			assert.Contains(t, out.String(), tc.want)
+			assert.NotContains(t, out.String(), "No help topic")
+		})
+	}
+}
+
+func TestHelpCommand_UnknownTopicStillFails(t *testing.T) {
+	cmd := &Command{
+		Name:     "app",
+		Writer:   io.Discard,
+		Commands: []*Command{{Name: "command"}},
+	}
+
+	err := cmd.Run(buildTestContext(t), []string{"app", "help", "ciao"})
+	require.ErrorContains(t, err, "No help topic for 'ciao'")
+}
+
 func Test_helpCommand_HideHelpCommand(t *testing.T) {
 	buf := &bytes.Buffer{}
 	cmd := &Command{

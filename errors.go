@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -159,9 +160,11 @@ func (ee *exitError) Unwrap() error {
 }
 
 // HandleExitCoder handles errors implementing ExitCoder by printing their
-// message and calling OsExiter with the given exit code.
+// message and calling OsExiter with the given exit code. The ExitCoder may be
+// wrapped (for example with fmt.Errorf and %w); it is located with [errors.As]
+// and the full message of the given error is printed.
 //
-// If the given error instead implements MultiError, each error will be checked
+// If the given error instead implements (or wraps) MultiError, each error will be checked
 // for the ExitCoder interface, and OsExiter will be called with the last exit
 // code found, or exit code 1 if no ExitCoder is found.
 //
@@ -171,7 +174,8 @@ func HandleExitCoder(err error) {
 		return
 	}
 
-	if exitErr, ok := err.(ExitCoder); ok {
+	var exitErr ExitCoder
+	if errors.As(err, &exitErr) {
 		if msg := err.Error(); msg != "" {
 			if _, ok := exitErr.(ErrorFormatter); ok {
 				_, _ = fmt.Fprintf(ErrWriter, "%+v\n", err)
@@ -183,7 +187,8 @@ func HandleExitCoder(err error) {
 		return
 	}
 
-	if multiErr, ok := err.(MultiError); ok {
+	var multiErr MultiError
+	if errors.As(err, &multiErr) {
 		code := handleMultiError(multiErr)
 		OsExiter(code)
 		return
@@ -193,11 +198,13 @@ func HandleExitCoder(err error) {
 func handleMultiError(multiErr MultiError) int {
 	code := 1
 	for _, merr := range multiErr.Errors() {
-		if multiErr2, ok := merr.(MultiError); ok {
+		var multiErr2 MultiError
+		var exitErr ExitCoder
+		if errors.As(merr, &multiErr2) {
 			code = handleMultiError(multiErr2)
 		} else if merr != nil {
 			fmt.Fprintln(ErrWriter, merr)
-			if exitErr, ok := merr.(ExitCoder); ok {
+			if errors.As(merr, &exitErr) {
 				code = exitErr.ExitCode()
 			}
 		}

@@ -321,6 +321,11 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
 		for _, grp := range pCmd.MutuallyExclusiveFlags {
 			if err := grp.check(cmd); err != nil {
+				// As with required flags, the help and completion commands
+				// may run without a required group being satisfied.
+				if _, ok := err.(*mutuallyExclusiveGroupRequiredFlag); ok && (cmd.builtInHelp || cmd.isCompletionCommand) {
+					continue
+				}
 				if cmd.OnUsageError != nil {
 					err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
 				} else {

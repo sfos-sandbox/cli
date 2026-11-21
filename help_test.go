@@ -454,6 +454,54 @@ func TestShowRootCommandHelp_CommandAliases(t *testing.T) {
 	require.Contains(t, out.String(), "frobbly, fr, frob")
 }
 
+func TestHelpCommandYieldsAliasToUserCommand(t *testing.T) {
+	out := &bytes.Buffer{}
+	historyRan := false
+
+	cmd := &Command{
+		Name: "app",
+		Commands: []*Command{
+			{
+				Name:    "history",
+				Aliases: []string{"h"},
+				Usage:   "show history",
+				Action: func(context.Context, *Command) error {
+					historyRan = true
+					return nil
+				},
+			},
+		},
+		Writer: out,
+	}
+
+	require.NoError(t, cmd.Run(buildTestContext(t), []string{"app", "h"}))
+	require.True(t, historyRan, "expected the h alias to run the user command")
+
+	helpCmd := cmd.Command(helpName)
+	require.NotNil(t, helpCmd)
+	require.Empty(t, helpCmd.Aliases, "help command should give up the h alias")
+	require.Same(t, cmd.Commands[0], cmd.Command(helpAlias))
+
+	out.Reset()
+	require.NoError(t, cmd.Run(buildTestContext(t), []string{"app", "--help"}))
+	outStr := out.String()
+	require.Contains(t, outStr, "history, h")
+	require.NotContains(t, outStr, "help, h")
+	require.Contains(t, outStr, "help ")
+}
+
+func TestHelpCommandKeepsAliasWithoutClash(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &Command{
+		Name:     "app",
+		Commands: []*Command{{Name: "history"}},
+		Writer:   out,
+	}
+
+	require.NoError(t, cmd.Run(buildTestContext(t), []string{"app", "--help"}))
+	require.Contains(t, out.String(), "help, h")
+}
+
 func TestShowCommandHelp_AppendHelp(t *testing.T) {
 	testCases := []struct {
 		name            string

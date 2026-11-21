@@ -310,24 +310,26 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 		return ctx, err
 	}
 
-	// Walk the parent chain to check mutually exclusive flag groups
-	// defined on ancestor commands, since persistent flags are inherited.
-	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
-		for _, grp := range pCmd.MutuallyExclusiveFlags {
-			if err := grp.check(cmd); err != nil {
-				if cmd.OnUsageError != nil {
-					err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
-				} else {
-					fmt.Fprintf(cmd.Root().ErrWriter, "Incorrect Usage: %s\n\n", err.Error())
-					if cmd.parent == nil {
-						_ = ShowRootCommandHelp(cmd)
+	if !cmd.builtInHelp {
+		// Walk the parent chain to check mutually exclusive flag groups
+		// defined on ancestor commands, since persistent flags are inherited.
+		for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
+			for _, grp := range pCmd.MutuallyExclusiveFlags {
+				if err := grp.check(cmd); err != nil {
+					if cmd.OnUsageError != nil {
+						err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
 					} else {
-						if err := ShowCommandHelp(ctx, cmd.parent, cmd.Name); err != nil {
-							_ = ShowSubcommandHelp(cmd)
+						fmt.Fprintf(cmd.Root().ErrWriter, "Incorrect Usage: %s\n\n", err.Error())
+						if cmd.parent == nil {
+							_ = ShowRootCommandHelp(cmd)
+						} else {
+							if err := ShowCommandHelp(ctx, cmd.parent, cmd.Name); err != nil {
+								_ = ShowSubcommandHelp(cmd)
+							}
 						}
 					}
+					return ctx, err
 				}
-				return ctx, err
 			}
 		}
 	}

@@ -320,8 +320,9 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 	// defined on ancestor commands, since persistent flags are inherited.
 	// This is done only by the innermost command, after it has parsed its
 	// own arguments, so that inherited flags given after a subcommand name
-	// are taken into account.
-	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
+	// are taken into account. The built-in help command only displays
+	// help, so it does not enforce the groups of its ancestors.
+	for pCmd := cmd; pCmd != nil && !cmd.builtInHelp; pCmd = pCmd.parent {
 		for _, grp := range pCmd.MutuallyExclusiveFlags {
 			if err := grp.check(cmd); err != nil {
 				if cmd.OnUsageError != nil {

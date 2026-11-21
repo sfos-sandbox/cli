@@ -179,6 +179,10 @@ func TestFlagMutuallyExclusiveFlagsInheritedBySubcommand(t *testing.T) {
 		{name: "flag between subcommands", args: []string{"root", "sub", "--alpha", "x", "leaf"}, want: "x"},
 		{name: "missing", args: []string{"root", "sub"}, errStr: "one of these flags needs to be provided: alpha"},
 		{name: "missing nested", args: []string{"root", "sub", "leaf"}, errStr: "one of these flags needs to be provided"},
+		{name: "help command at root", args: []string{"root", "help"}},
+		{name: "help command for subcommand", args: []string{"root", "help", "sub"}},
+		{name: "help command on subcommand", args: []string{"root", "sub", "help"}},
+		{name: "help flag on subcommand", args: []string{"root", "sub", "--help"}},
 		{name: "both split across levels", args: []string{"root", "--alpha", "a", "sub", "--beta", "b"}, errStr: "option alpha cannot be set along with option beta"},
 	}
 

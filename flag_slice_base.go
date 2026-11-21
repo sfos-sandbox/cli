@@ -54,8 +54,11 @@ func (i *SliceBase[T, C, VC]) Set(value string) error {
 	}
 
 	if s, ok := strings.CutPrefix(value, slPfx()); ok {
-		// Deserializing assumes overwrite
-		_ = json.Unmarshal([]byte(s), &i.slice)
+		// Deserializing assumes overwrite. Unmarshal into the destination
+		// itself (not the pointer to it) so that a serialized empty value
+		// ("null") resets the destination instead of replacing the pointer
+		// with nil and disconnecting the value from its destination.
+		_ = json.Unmarshal([]byte(s), i.slice)
 		i.hasBeenSet = true
 		return nil
 	}

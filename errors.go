@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -160,13 +159,14 @@ func (ee *exitError) Unwrap() error {
 }
 
 // HandleExitCoder handles errors implementing ExitCoder by printing their
-// message and calling OsExiter with the given exit code. The ExitCoder may be
-// wrapped (e.g. with fmt.Errorf and %w); it is located with [errors.As] and the
-// full message of the given error is printed.
+// message and calling OsExiter with the given exit code.
 //
-// If the given error instead implements (or wraps) MultiError, each error will
-// be checked for the ExitCoder interface, and OsExiter will be called with the
-// last exit code found, or exit code 1 if no ExitCoder is found.
+// If the given error instead implements MultiError, each error will be checked
+// for the ExitCoder interface, and OsExiter will be called with the last exit
+// code found, or exit code 1 if no ExitCoder is found.
+//
+// An ExitCoder that is wrapped with fmt.Errorf("%w") is handled the same way,
+// so adding context to an error does not lose its exit code.
 //
 // This function is the default error-handling behavior for a Command.
 func HandleExitCoder(err error) {
@@ -174,8 +174,9 @@ func HandleExitCoder(err error) {
 		return
 	}
 
-	var exitErr ExitCoder
-	if errors.As(err, &exitErr) {
+	exitErr, multiErr := findExitCoderOrMultiError(err)
+
+	if exitErr != nil {
 		if msg := err.Error(); msg != "" {
 			if _, ok := exitErr.(ErrorFormatter); ok {
 				_, _ = fmt.Fprintf(ErrWriter, "%+v\n", err)
@@ -187,12 +188,42 @@ func HandleExitCoder(err error) {
 		return
 	}
 
-	var multiErr MultiError
-	if errors.As(err, &multiErr) {
+	if multiErr != nil {
 		code := handleMultiError(multiErr)
 		OsExiter(code)
 		return
 	}
+}
+
+// findExitCoderOrMultiError walks the wrap chain of err and returns the first
+// error that is an ExitCoder or a MultiError, whichever comes first. Unlike
+// [errors.As], it stops at a MultiError instead of descending into it (a
+// MultiError may also implement Unwrap() []error), so that the "last exit code
+// wins" rule of MultiError is kept.
+func findExitCoderOrMultiError(err error) (ExitCoder, MultiError) {
+	for err != nil {
+		if exitErr, ok := err.(ExitCoder); ok {
+			return exitErr, nil
+		}
+		if multiErr, ok := err.(MultiError); ok {
+			return nil, multiErr
+		}
+
+		switch u := err.(type) {
+		case interface{ Unwrap() error }:
+			err = u.Unwrap()
+		case interface{ Unwrap() []error }:
+			for _, e := range u.Unwrap() {
+				if exitErr, multiErr := findExitCoderOrMultiError(e); exitErr != nil || multiErr != nil {
+					return exitErr, multiErr
+				}
+			}
+			return nil, nil
+		default:
+			return nil, nil
+		}
+	}
+	return nil, nil
 }
 
 func handleMultiError(multiErr MultiError) int {
@@ -202,11 +233,29 @@ func handleMultiError(multiErr MultiError) int {
 			code = handleMultiError(multiErr2)
 		} else if merr != nil {
 			fmt.Fprintln(ErrWriter, merr)
-			var exitErr ExitCoder
-			if errors.As(merr, &exitErr) {
-				code = exitErr.ExitCode()
+			if c, ok := exitCodeOf(merr); ok {
+				code = c
 			}
 		}
 	}
 	return code
+}
+
+// exitCodeOf reports the exit code carried by err, which may be wrapped: the
+// code of an ExitCoder, or the last exit code found in a MultiError.
+func exitCodeOf(err error) (int, bool) {
+	exitErr, multiErr := findExitCoderOrMultiError(err)
+	if exitErr != nil {
+		return exitErr.ExitCode(), true
+	}
+	if multiErr != nil {
+		code, found := 0, false
+		for _, e := range multiErr.Errors() {
+			if c, ok := exitCodeOf(e); ok {
+				code, found = c, true
+			}
+		}
+		return code, found
+	}
+	return 0, false
 }

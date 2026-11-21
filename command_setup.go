@@ -25,7 +25,12 @@ func (cmd *Command) setupDefaults(osArgs []string) {
 	}
 
 	if cmd.Name == "" && isRoot {
-		name := filepath.Base(osArgs[0])
+		var name string
+		if len(osArgs) > 0 {
+			name = filepath.Base(osArgs[0])
+		} else if len(os.Args) > 0 {
+			name = filepath.Base(os.Args[0])
+		}
 		tracef("setting cmd.Name from first arg basename (cmd=%[1]q)", name)
 		cmd.Name = name
 	}

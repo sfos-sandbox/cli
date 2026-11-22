@@ -8363,3 +8363,71 @@ func TestDefaultCommandUnmatchedDoesNotLeakIntoArgs(t *testing.T) {
 	assert.Equal(t, []string{"alice", "bob"}, gotArgs)
 	assert.Equal(t, 2, cmd.NArg())
 }
+
+func TestDefaultCommandUnmatchedRootActionArgs(t *testing.T) {
+	// Regression test for the reported scenario: DefaultCommand "helo" is a
+	// typo for the only subcommand "hello"; "greet alice" must print only
+	// "Hello alice", without a leaked "Hello helo".
+	newCmd := func(out *bytes.Buffer) *Command {
+		return &Command{
+			Name:           "greet",
+			DefaultCommand: "helo",
+			Writer:         out,
+			Commands: []*Command{
+				{
+					Name: "hello",
+					Action: func(context.Context, *Command) error {
+						fmt.Fprintln(out, "hello subcommand")
+						return nil
+					},
+				},
+			},
+			Action: func(_ context.Context, cmd *Command) error {
+				for _, name := range cmd.Args().Slice() {
+					fmt.Fprintf(out, "Hello %s\n", name)
+				}
+				return nil
+			},
+		}
+	}
+
+	t.Run("root", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		require.NoError(t, newCmd(out).Run(buildTestContext(t), []string{"greet", "alice"}))
+		assert.Equal(t, "Hello alice\n", out.String())
+	})
+
+	t.Run("with suggest command func", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		cmd := newCmd(out)
+		cmd.SuggestCommandFunc = func(_ []*Command, provided string) string { return provided }
+		require.NoError(t, cmd.Run(buildTestContext(t), []string{"greet", "alice"}))
+		assert.Equal(t, "Hello alice\n", out.String())
+	})
+
+	t.Run("nested", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		root := &Command{Name: "root", Commands: []*Command{newCmd(out)}}
+		require.NoError(t, root.Run(buildTestContext(t), []string{"root", "greet", "alice"}))
+		assert.Equal(t, "Hello alice\n", out.String())
+	})
+
+	t.Run("named arguments", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		var names []string
+		cmd := newCmd(out)
+		cmd.Arguments = []Argument{&StringArgs{Name: "names", Min: 0, Max: -1}}
+		cmd.Action = func(_ context.Context, cmd *Command) error {
+			names = cmd.StringArgs("names")
+			return nil
+		}
+		require.NoError(t, cmd.Run(buildTestContext(t), []string{"greet", "alice"}))
+		assert.Equal(t, []string{"alice"}, names)
+	})
+
+	t.Run("no args", func(t *testing.T) {
+		out := &bytes.Buffer{}
+		require.NoError(t, newCmd(out).Run(buildTestContext(t), []string{"greet"}))
+		assert.Equal(t, "", out.String())
+	})
+}

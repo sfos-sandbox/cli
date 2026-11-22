@@ -98,3 +98,32 @@ func TestHiddenCompletionHelpListsSubcommands(t *testing.T) {
 		assert.Contains(t, out.String(), name)
 	}
 }
+
+func TestIsHiddenFromWithinHiddenSubcommandAction(t *testing.T) {
+	var innerHidden, visibleHidden bool
+	cmd := &Command{
+		Name: "app",
+		Commands: []*Command{
+			{
+				Name:   "secret",
+				Hidden: true,
+				Commands: []*Command{
+					{Name: "inner", Action: func(_ context.Context, c *Command) error {
+						innerHidden = c.IsHidden()
+						return nil
+					}},
+				},
+			},
+			{Name: "visible", Action: func(_ context.Context, c *Command) error {
+				visibleHidden = c.IsHidden()
+				return nil
+			}},
+		},
+	}
+	require.NoError(t, cmd.Run(context.Background(), []string{"app", "secret", "inner"}))
+	assert.True(t, innerHidden)
+	assert.False(t, cmd.Command("secret").Command("inner").Hidden)
+
+	require.NoError(t, cmd.Run(context.Background(), []string{"app", "visible"}))
+	assert.False(t, visibleHidden)
+}

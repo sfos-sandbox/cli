@@ -74,7 +74,6 @@ complete -c greet -n '__fish_seen_subcommand_from hidden-command' -f -l flag -l 
 complete -c greet -n '__fish_seen_subcommand_from hidden-command' -f -l another-flag -s b -d 'another usage text'
 complete -c greet -n '__fish_seen_subcommand_from hidden-command' -l logfile -r
 complete -c greet -n '__fish_seen_subcommand_from hidden-command' -l foofile -r
-complete -x -c greet -n '__fish_seen_subcommand_from hidden-command; and not __fish_seen_subcommand_from help h' -a 'help' -d 'Shows a list of commands or help for one command'
 complete -c greet -n '__fish_seen_subcommand_from hidden-command; and __fish_seen_subcommand_from help h' -l socket -s s -r -d 'some \'usage\' text'
 complete -c greet -n '__fish_seen_subcommand_from hidden-command; and __fish_seen_subcommand_from help h' -f -l flag -l fl -s f -r
 complete -c greet -n '__fish_seen_subcommand_from hidden-command; and __fish_seen_subcommand_from help h' -f -l another-flag -s b -d 'another usage text'

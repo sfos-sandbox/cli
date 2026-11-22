@@ -47,7 +47,7 @@ func (cmd *Command) writeFishCompletionTemplate(w io.Writer) error {
 	// Add commands and their flags
 	completions = append(
 		completions,
-		prepareFishCommands(cmd.Name, cmd)...,
+		prepareFishCommands(cmd.Name, cmd, false)...,
 	)
 
 	toplevelCommandNames := []string{}
@@ -62,11 +62,15 @@ func (cmd *Command) writeFishCompletionTemplate(w io.Writer) error {
 	})
 }
 
-func prepareFishCommands(binary string, parent *Command) []string {
+// prepareFishCommands returns the completions for the subcommands of parent.
+// parentHidden reports whether parent or one of its ancestors is hidden, in
+// which case none of its subcommands are offered either.
+func prepareFishCommands(binary string, parent *Command, parentHidden bool) []string {
 	commands := parent.Commands
 	completions := []string{}
 	for _, command := range commands {
-		if !command.Hidden {
+		hidden := parentHidden || command.Hidden
+		if !hidden {
 			var completion strings.Builder
 			fmt.Fprintf(&completion,
 				"complete -x -c %s -n '%s' -a '%s'",
@@ -110,7 +114,7 @@ func prepareFishCommands(binary string, parent *Command) []string {
 		// recursively iterate subcommands
 		completions = append(
 			completions,
-			prepareFishCommands(binary, command)...,
+			prepareFishCommands(binary, command, hidden)...,
 		)
 	}
 

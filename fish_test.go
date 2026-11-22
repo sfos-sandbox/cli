@@ -188,3 +188,29 @@ func TestFishCompletionUsesFirstLineOfUsage(t *testing.T) {
 	assert.NotContains(t, res, "stdout")
 	assert.NotContains(t, res, "remove build output")
 }
+
+func TestFishCompletionSkipsSubcommandsOfHiddenCommands(t *testing.T) {
+	cmd := &Command{
+		Name: "app",
+		Commands: []*Command{
+			{
+				Name:   "secret",
+				Hidden: true,
+				Commands: []*Command{
+					{Name: "inner", Commands: []*Command{{Name: "deepest"}}},
+				},
+			},
+			{Name: "visible", Commands: []*Command{{Name: "child"}}},
+		},
+	}
+
+	res, err := cmd.ToFishCompletion()
+	require.NoError(t, err)
+
+	assert.NotContains(t, res, "-a 'secret'")
+	assert.NotContains(t, res, "-a 'inner'")
+	assert.NotContains(t, res, "-a 'deepest'")
+	assert.Contains(t, res, "-a 'visible'")
+	assert.Contains(t, res, "-a 'child'")
+	assert.False(t, cmd.Commands[0].Commands[0].Hidden)
+}

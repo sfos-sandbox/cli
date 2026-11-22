@@ -724,6 +724,14 @@ func (cmd *Command) IntSlice(name string) []int
     IntSlice looks up the value of a local IntSliceFlag, returns nil if not
     found
 
+func (cmd *Command) IsHidden() bool
+    IsHidden reports whether cmd is hidden, either because its own Hidden field
+    is set or because one of its ancestors is hidden. It relies on the parent
+    links that are set up when the command tree is run, so it is meant to be
+    used from within a command's action (for example while walking the tree with
+    Walk). The Hidden field itself is left unchanged. A hidden command still
+    runs when invoked directly.
+
 func (cmd *Command) IsSet(name string) bool
     IsSet determines if the flag was actually set
 

@@ -718,6 +718,21 @@ func (cmd *Command) Path() []string {
 	return []string{cmd.Name}
 }
 
+// IsHidden reports whether cmd is hidden, either because its own Hidden field
+// is set or because one of its ancestors is hidden. It relies on the parent
+// links that are set up when the command tree is run, so it is meant to be
+// used from within a command's action (for example while walking the tree with
+// Walk). The Hidden field itself is left unchanged. A hidden command still
+// runs when invoked directly.
+func (cmd *Command) IsHidden() bool {
+	for c := cmd; c != nil; c = c.parent {
+		if c.Hidden {
+			return true
+		}
+	}
+	return false
+}
+
 // Walk visits cmd and every descendant. If fn returns a non-nil error, the
 // walk terminates and the error is returned to the caller.
 func (cmd *Command) Walk(fn func(*Command) error) error {

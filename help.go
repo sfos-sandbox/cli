@@ -107,9 +107,22 @@ func helpCommandAction(ctx context.Context, cmd *Command) error {
 	//     to
 	// $ app foo
 	// which will then be handled as case 3
+	helpCmd := cmd
 	if cmd.parent != nil && cmd.builtInHelp {
 		tracef("setting cmd to cmd.parent")
 		cmd = cmd.parent
+	}
+
+	// When help was requested via the --help / -h flag (rather than the
+	// "help" subcommand), an argument that is not a subcommand name is a
+	// regular positional argument and is ignored, so the help of the
+	// current command is shown:
+	//
+	//   $ app foo bar --help   # show help for "foo"
+	//   $ app --help bar       # show root help
+	if firstArg != "" && !helpCmd.builtInHelp && cmd.checkHelp() && cmd.Command(firstArg) == nil {
+		tracef("ignoring non-command arg %[1]q for help flag", firstArg)
+		firstArg = ""
 	}
 
 	// Case 4. $ app help foo

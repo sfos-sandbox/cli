@@ -2,6 +2,7 @@ package cli
 
 import (
 	"math"
+	"unicode/utf8"
 )
 
 const suggestDidYouMeanTemplate = "Did you mean %q?"
@@ -120,9 +121,9 @@ func suggestFlag(flags []Flag, provided string, hideHelp bool) string {
 		}
 	}
 
-	if len(suggestion) == 1 {
+	if n := utf8.RuneCountInString(suggestion); n == 1 {
 		suggestion = "-" + suggestion
-	} else if len(suggestion) > 1 {
+	} else if n > 1 {
 		suggestion = "--" + suggestion
 	}
 

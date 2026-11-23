@@ -457,15 +457,25 @@ func (cmd *Command) lookupFlag(name string) Flag {
 // this looks up only allowed flags, i.e. local flags for current command
 // or persistent flags from ancestors
 func (cmd *Command) lookupAppliedFlag(name string) Flag {
-	for _, f := range cmd.appliedFlags {
-		if slices.Contains(f.Names(), name) {
-			tracef("appliedFlag found for name %[1]q (cmd=%[2]q)", name, cmd.Name)
-			return f
-		}
+	if f := cmd.findAppliedFlag(name); f != nil {
+		tracef("appliedFlag found for name %[1]q (cmd=%[2]q)", name, cmd.Name)
+		return f
 	}
 
 	tracef("lookupAppliedflag NOT found for name %[1]q (cmd=%[2]q)", name, cmd.Name)
 	cmd.onInvalidFlag(context.TODO(), name)
+	return nil
+}
+
+// findAppliedFlag is like lookupAppliedFlag but does not report a missing
+// flag to the InvalidFlagAccessHandler, so it can be used to probe whether an
+// argument names a flag at all.
+func (cmd *Command) findAppliedFlag(name string) Flag {
+	for _, f := range cmd.appliedFlags {
+		if slices.Contains(f.Names(), name) {
+			return f
+		}
+	}
 	return nil
 }
 

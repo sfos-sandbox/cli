@@ -69,9 +69,16 @@ func (i *MapBase[T, C, VC]) Set(value string) error {
 
 	if s, ok := strings.CutPrefix(value, slPfx()); ok {
 		// Deserializing assumes overwrite
-		_ = json.Unmarshal([]byte(s), &i.dict)
+		// Unmarshal into the destination itself (not the pointer field) so a
+		// serialized empty value ("null") doesn't detach it from the destination.
+		*i.dict = nil
+		_ = json.Unmarshal([]byte(s), i.dict)
 		i.hasBeenSet = true
 		return nil
+	}
+
+	if *i.dict == nil {
+		*i.dict = map[string]T{}
 	}
 
 	mvc := &i.multiValueConfig

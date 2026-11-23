@@ -1766,6 +1766,28 @@ func TestParseShortOptionBoolError(t *testing.T) {
 	assert.Error(t, err, "expected error parsing invalid bool")
 }
 
+func TestParseShortOptionBoolWithInverseFlag(t *testing.T) {
+	for _, args := range [][]string{
+		{"run", "-v"},
+		{"run", "-cv"},
+		{"run", "-vc"},
+	} {
+		t.Run(strings.Join(args[1:], " "), func(t *testing.T) {
+			verbose := &BoolWithInverseFlag{Name: "verbose", Aliases: []string{"v"}}
+			cmd := buildMinimalTestCommand()
+			cmd.UseShortOptionHandling = true
+			cmd.Flags = []Flag{
+				verbose,
+				&BoolFlag{Name: "c"},
+			}
+
+			require.NoError(t, cmd.Run(buildTestContext(t), args))
+			assert.True(t, cmd.Bool("verbose"))
+			assert.True(t, verbose.IsSet())
+		})
+	}
+}
+
 func TestParseShortOptionIntError(t *testing.T) {
 	cmd := buildMinimalTestCommand()
 	cmd.Flags = []Flag{

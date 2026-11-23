@@ -301,16 +301,15 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 
 	// Walk the parent chain to check mutually exclusive flag groups
 	// defined on ancestor commands, since persistent flags are inherited.
-	// When a subcommand is about to run, the requirement that one flag of a
-	// required group be set is deferred to the subcommand, because the flag
-	// may still be provided after the subcommand name. Conflicts are
-	// reported immediately.
-	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
+	// The check is done only by the command that actually runs: when a
+	// subcommand is about to run, the flags of a group may still be given
+	// after the subcommand name, and the subcommand checks the groups of
+	// all its ancestors. The built-in help and completion commands skip
+	// the check so help can be shown without the required flags.
+	checkGroups := subCmd == nil && !cmd.builtInHelp && !cmd.isCompletionCommand
+	for pCmd := cmd; checkGroups && pCmd != nil; pCmd = pCmd.parent {
 		for _, grp := range pCmd.MutuallyExclusiveFlags {
 			if err := grp.check(cmd); err != nil {
-				if _, ok := err.(*mutuallyExclusiveGroupRequiredFlag); ok && subCmd != nil {
-					continue
-				}
 				if cmd.OnUsageError != nil {
 					err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
 				} else {

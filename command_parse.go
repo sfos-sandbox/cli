@@ -134,8 +134,10 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 		if firstArg[1] == '-' {
 			numMinuses++
 			shortOptionHandling = false
-		} else if firstRune, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(firstRune) {
-			// this is not a flag
+		} else if firstRune, _ := utf8.DecodeRuneInString(firstArg[1:]); !unicode.IsLetter(firstRune) &&
+			!cmd.isDefinedSingleDashFlag(firstArg[1:], shortOptionHandling) {
+			// this is not a flag (e.g. a negative number), unless it names a
+			// defined flag such as -4 or -6
 			tracef("parseFlags not a unicode letter. Stop parsing")
 			posArgs = append(posArgs, rargs...)
 			return &stringSliceArgs{posArgs}, nil
@@ -271,4 +273,27 @@ func (cmd *Command) parseFlags(args Args) (Args, error) {
 
 	tracef("returning-2 (cmd=%[1]q) args %[2]q", cmd.Name, posArgs)
 	return &stringSliceArgs{posArgs}, nil
+}
+
+// isDefinedSingleDashFlag reports whether name (the text after a single dash,
+// possibly followed by "=value") refers to a defined flag. It is used for
+// arguments that do not start with a letter, such as "-4", which would
+// otherwise be treated as positional (for example a negative number).
+func (cmd *Command) isDefinedSingleDashFlag(name string, shortOptionHandling bool) bool {
+	name, _, _ = strings.Cut(name, "=")
+	if name == "" {
+		return false
+	}
+	if cmd.lookupAppliedFlag(name) != nil {
+		return true
+	}
+	if !shortOptionHandling {
+		return false
+	}
+	for _, c := range name {
+		if cmd.lookupAppliedFlag(string(c)) == nil {
+			return false
+		}
+	}
+	return true
 }

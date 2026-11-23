@@ -56,3 +56,24 @@ func TestCommand_DigitFlags(t *testing.T) {
 		})
 	}
 }
+
+// Probing whether a single-dash argument such as "-5" names a defined flag
+// must not report it to InvalidFlagAccessHandler: it is a positional argument.
+func TestCommand_DigitFlags_ProbeDoesNotReportInvalidFlag(t *testing.T) {
+	for _, shortOptions := range []bool{false, true} {
+		var invalid []string
+		cmd := &Command{
+			Name:                   "app",
+			UseShortOptionHandling: shortOptions,
+			Flags:                  []Flag{&BoolFlag{Name: "4"}},
+			InvalidFlagAccessHandler: func(_ context.Context, _ *Command, name string) {
+				invalid = append(invalid, name)
+			},
+			Action: func(context.Context, *Command) error { return nil },
+		}
+
+		require.NoError(t, cmd.Run(buildTestContext(t), []string{"app", "-5", "-45"}))
+		assert.Empty(t, invalid, "shortOptions=%v", shortOptions)
+		assert.Equal(t, []string{"-5", "-45"}, cmd.Args().Slice())
+	}
+}

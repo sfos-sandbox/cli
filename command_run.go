@@ -264,28 +264,6 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 		}()
 	}
 
-	// Walk the parent chain to check mutually exclusive flag groups
-	// defined on ancestor commands, since persistent flags are inherited.
-	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
-		for _, grp := range pCmd.MutuallyExclusiveFlags {
-			if err := grp.check(cmd); err != nil {
-				if cmd.OnUsageError != nil {
-					err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
-				} else {
-					fmt.Fprintf(cmd.Root().ErrWriter, "Incorrect Usage: %s\n\n", err.Error())
-					if cmd.parent == nil {
-						_ = ShowRootCommandHelp(cmd)
-					} else {
-						if err := ShowCommandHelp(ctx, cmd.parent, cmd.Name); err != nil {
-							_ = ShowSubcommandHelp(cmd)
-						}
-					}
-				}
-				return ctx, err
-			}
-		}
-	}
-
 	var subCmd *Command
 	if cmd.parsedArgs.Present() {
 		tracef("checking positional args %[1]q (cmd=%[2]q)", cmd.parsedArgs, cmd.Name)
@@ -318,6 +296,35 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 
 		if dc := cmd.Command(cmd.DefaultCommand); dc != cmd {
 			subCmd = dc
+		}
+	}
+
+	// Walk the parent chain to check mutually exclusive flag groups
+	// defined on ancestor commands, since persistent flags are inherited.
+	// When a subcommand is about to run, the requirement that one flag of a
+	// required group be set is deferred to the subcommand, because the flag
+	// may still be provided after the subcommand name. Conflicts are
+	// reported immediately.
+	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
+		for _, grp := range pCmd.MutuallyExclusiveFlags {
+			if err := grp.check(cmd); err != nil {
+				if _, ok := err.(*mutuallyExclusiveGroupRequiredFlag); ok && subCmd != nil {
+					continue
+				}
+				if cmd.OnUsageError != nil {
+					err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
+				} else {
+					fmt.Fprintf(cmd.Root().ErrWriter, "Incorrect Usage: %s\n\n", err.Error())
+					if cmd.parent == nil {
+						_ = ShowRootCommandHelp(cmd)
+					} else {
+						if err := ShowCommandHelp(ctx, cmd.parent, cmd.Name); err != nil {
+							_ = ShowSubcommandHelp(cmd)
+						}
+					}
+				}
+				return ctx, err
+			}
 		}
 	}
 

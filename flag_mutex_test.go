@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newCommand() *Command {
@@ -127,6 +130,66 @@ func TestFlagMutuallyExclusiveFlags(t *testing.T) {
 			default:
 				t.Errorf("got invalid error type %T", err)
 			}
+		})
+	}
+}
+
+func TestFlagMutuallyExclusiveFlags_RequiredOnParentWithSubcommand(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		errStr string
+	}{
+		{name: "flag before subcommand", args: []string{"root", "--alpha", "hello", "sub"}},
+		{name: "flag after subcommand", args: []string{"root", "sub", "--alpha", "hello"}},
+		{name: "flag missing", args: []string{"root", "sub"}, errStr: "one of these flags needs to be provided: alpha"},
+		{name: "flag missing root only", args: []string{"root"}, errStr: "one of these flags needs to be provided: alpha"},
+		{
+			name:   "conflict across subcommand",
+			args:   []string{"root", "--alpha", "a", "sub", "--beta", "b"},
+			errStr: "option alpha cannot be set along with option beta",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			subRan := false
+			var gotAlpha string
+			cmd := &Command{
+				Name:      "root",
+				Writer:    io.Discard,
+				ErrWriter: io.Discard,
+				MutuallyExclusiveFlags: []MutuallyExclusiveFlags{
+					{
+						Required: true,
+						Flags: [][]Flag{
+							{&StringFlag{Name: "alpha"}},
+							{&StringFlag{Name: "beta"}},
+						},
+					},
+				},
+				Commands: []*Command{
+					{
+						Name: "sub",
+						Action: func(_ context.Context, c *Command) error {
+							subRan = true
+							gotAlpha = c.String("alpha")
+							return nil
+						},
+					},
+				},
+			}
+
+			err := cmd.Run(buildTestContext(t), test.args)
+			if test.errStr == "" {
+				require.NoError(t, err)
+				assert.True(t, subRan)
+				assert.Equal(t, "hello", gotAlpha)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), test.errStr)
+			assert.False(t, subRan)
 		})
 	}
 }

@@ -264,28 +264,6 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 		}()
 	}
 
-	// Walk the parent chain to check mutually exclusive flag groups
-	// defined on ancestor commands, since persistent flags are inherited.
-	for pCmd := cmd; pCmd != nil; pCmd = pCmd.parent {
-		for _, grp := range pCmd.MutuallyExclusiveFlags {
-			if err := grp.check(cmd); err != nil {
-				if cmd.OnUsageError != nil {
-					err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
-				} else {
-					fmt.Fprintf(cmd.Root().ErrWriter, "Incorrect Usage: %s\n\n", err.Error())
-					if cmd.parent == nil {
-						_ = ShowRootCommandHelp(cmd)
-					} else {
-						if err := ShowCommandHelp(ctx, cmd.parent, cmd.Name); err != nil {
-							_ = ShowSubcommandHelp(cmd)
-						}
-					}
-				}
-				return ctx, err
-			}
-		}
-	}
-
 	var subCmd *Command
 	if cmd.parsedArgs.Present() {
 		tracef("checking positional args %[1]q (cmd=%[2]q)", cmd.parsedArgs, cmd.Name)
@@ -318,6 +296,34 @@ func (cmd *Command) run(ctx context.Context, osArgs []string) (_ context.Context
 
 		if dc := cmd.Command(cmd.DefaultCommand); dc != cmd {
 			subCmd = dc
+		}
+	}
+
+	// Walk the parent chain to check mutually exclusive flag groups
+	// defined on ancestor commands, since persistent flags are inherited.
+	// The check is done only by the command that actually runs: when a
+	// subcommand is about to run, the flags of a group may still be given
+	// after the subcommand name, and the subcommand checks the groups of
+	// all its ancestors. The built-in help and completion commands skip
+	// the check so help can be shown without the required flags.
+	checkGroups := subCmd == nil && !cmd.builtInHelp && !cmd.isCompletionCommand
+	for pCmd := cmd; checkGroups && pCmd != nil; pCmd = pCmd.parent {
+		for _, grp := range pCmd.MutuallyExclusiveFlags {
+			if err := grp.check(cmd); err != nil {
+				if cmd.OnUsageError != nil {
+					err = cmd.OnUsageError(ctx, cmd, err, cmd.parent != nil)
+				} else {
+					fmt.Fprintf(cmd.Root().ErrWriter, "Incorrect Usage: %s\n\n", err.Error())
+					if cmd.parent == nil {
+						_ = ShowRootCommandHelp(cmd)
+					} else {
+						if err := ShowCommandHelp(ctx, cmd.parent, cmd.Name); err != nil {
+							_ = ShowSubcommandHelp(cmd)
+						}
+					}
+				}
+				return ctx, err
+			}
 		}
 	}
 
